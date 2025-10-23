@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    Int             @id @default(autoincrement())
+  name                  String?
+  email                 String          @unique
+  supervisorId          Int?
+  passwordHash          String?
+  role                  UserRole        @default(STUDENT)
+  emailVerified         DateTime?
+  pendingEmail          String?
+  Comment               Comment[]
+  sentNotifications     Notification[]  @relation("ActorNotifications")
+  receivedNotifications Notification[]  @relation("RecipientNotifications")
+  supervisedProjects    Project[]       @relation("ProjectSupervisor")
+  memberships           ProjectMember[]
+  assignedTasks         Task[]          @relation("TaskAssignee")
+  flaggedTasks          Task[]          @relation("FlaggedTasks")
+  taskSets              TaskSet[]
+  collaboratorProjects  Project[]       @relation("ProjectCollaborators")
+  studentProjects       Project[]       @relation("ProjectStudents")
+  multiAssignedTasks    Task[]          @relation("TaskAssignments")
+  emailVerifications    EmailVerification[]
+  passwordResets        PasswordResetToken[]
+}
+
+model Project {
+  id            Int             @id @default(autoincrement())
+  title         String          @unique
+  description   String?
+  supervisorId  Int
+  startDate     DateTime?
+  endDate       DateTime?
+  createdAt     DateTime        @default(now())
+  category      String?
+  updatedAt     DateTime        @updatedAt
+  isCompleted   Boolean         @default(false)
+  archived      Boolean         @default(false)
+  status        String          @default("On Track")
+  notifications Notification[]
+  supervisor    User            @relation("ProjectSupervisor", fields: [supervisorId], references: [id])
+  members       ProjectMember[]
+  tasks         Task[]
+  collaborators User[]          @relation("ProjectCollaborators")
+  students      User[]          @relation("ProjectStudents")
+}
+
+model ProjectMember {
+  id        Int     @id @default(autoincrement())
+  projectId Int
+  userId    Int
+  role      String
+  project   Project @relation(fields: [projectId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Task {
+  id               Int            @id @default(autoincrement())
+  projectId        Int
+  title            String
+  description      String?
+  dueDate          DateTime?
+  dependencyTaskId Int?
+  flagged          Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  assigneeId       Int?
+  duration         Int?
+  startDate        DateTime?
+  status           TaskStatus     @default(TODO)
+  flaggedByUserId  Int?
+  comments         Comment[]
+  notifications    Notification[]
+  assignee         User?          @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  flaggedBy        User?          @relation("FlaggedTasks", fields: [flaggedByUserId], references: [id])
+  project          Project        @relation(fields: [projectId], references: [id])
+  assignedUsers    User[]         @relation("TaskAssignments")
+
+  @@index([projectId])
+  @@unique([projectId, title])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+  content   String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  projectId   Int
+  taskId      Int?
+  actorId     Int
+  recipientId Int
+  type        String
+  message     String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  actor       User     @relation("ActorNotifications", fields: [actorId], references: [id])
+  project     Project  @relation(fields: [projectId], references: [id])
+  recipient   User     @relation("RecipientNotifications", fields: [recipientId], references: [id])
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, read])
+  @@index([projectId])
+}
+
+model EmailVerification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  newEmail  String?
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model TaskSet {
+  id           Int            @id @default(autoincrement())
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  supervisorId Int
+  name         String
+  supervisor   User           @relation(fields: [supervisorId], references: [id])
+  templates    TaskTemplate[] @relation("TaskSetTemplates")
+}
+
+model TaskTemplate {
+  id          Int      @id @default(autoincrement())
+  description String?
+  taskSetId   Int
+  createdAt   DateTime @default(now())
+  dueOffset   Int?
+  order       Int?
+  title       String
+  duration    Int?
+  taskSet     TaskSet  @relation("TaskSetTemplates", fields: [taskSetId], references: [id], onDelete: Cascade)
+}
+
+enum UserRole {
+  SUPERVISOR
+  STUDENT
+  COLLABORATOR
+  ADMIN
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BEHIND_SCHEDULE
+  AT_RISK
+  COMPLETE
+  BLOCKED
+}
