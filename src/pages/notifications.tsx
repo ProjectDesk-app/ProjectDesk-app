@@ -23,11 +23,40 @@ export default function NotificationsPage() {
     mutate();
   }
 
+  async function deleteAll() {
+    if (!data?.length) return;
+    const confirmed = window.confirm('Delete all notifications? This cannot be undone.');
+    if (!confirmed) return;
+    const res = await fetch('/api/notifications', { method: 'DELETE' });
+    if (res.ok) {
+      mutate();
+    } else {
+      console.error('Failed to delete notifications');
+    }
+  }
+
   return (
     <Layout title="Notifications">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Notifications</h1>
-        <button onClick={markAllRead} className="text-sm border px-3 py-1 rounded-md">Mark all as read</button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={markAllRead}
+            className="text-sm border px-3 py-1 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!data?.length}
+          >
+            Mark all as read
+          </button>
+          <button
+            type="button"
+            onClick={deleteAll}
+            className="text-sm border px-3 py-1 rounded-md text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!data?.length}
+          >
+            Delete all
+          </button>
+        </div>
       </div>
 
       {!data ? (

@@ -28,6 +28,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json({ ok: true });
   }
 
-  res.setHeader('Allow', 'GET, PATCH');
+  if (req.method === 'DELETE') {
+    const deleted = await prisma.notification.deleteMany({
+      where: { recipientId: userId },
+    });
+    return res.json({ ok: true, deleted: deleted.count });
+  }
+
+  res.setHeader('Allow', 'GET, PATCH, DELETE');
   return res.status(405).end('Method Not Allowed');
 }
