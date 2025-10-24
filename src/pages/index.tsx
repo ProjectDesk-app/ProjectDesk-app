@@ -22,7 +22,7 @@ export default function Home() {
             ProjectDesk keeps research teams organised, connected, and on track. Plan milestones, support students, and collaborate with confidence.
           </p>
           <a
-            href="https://projectdesk.app/learn-more"
+            href="https://projectdesk.app/"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-md border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
