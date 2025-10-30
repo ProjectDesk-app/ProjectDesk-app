@@ -7,11 +7,15 @@ import { sendEmail } from "@/lib/mailer";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const allowedOrigin =
-    process.env.MARKETING_SITE_URL || process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL;
+  const allowedOrigins = [
+    process.env.MARKETING_SITE_URL,
+    process.env.NEXTAUTH_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+  ].filter(Boolean);
 
-  if (allowedOrigin) {
-    res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  const requestOrigin = req.headers.origin;
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
   }
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
