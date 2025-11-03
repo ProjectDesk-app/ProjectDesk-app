@@ -17,6 +17,9 @@ export default function ProjectTasks() {
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role;
 
+  const normalizeStatus = (status: unknown) =>
+    typeof status === "string" ? status.toLowerCase() : String(status ?? "").toLowerCase();
+
   const [isModalOpen, setModalOpen] = useState(false);
 
   const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -26,8 +29,12 @@ export default function ProjectTasks() {
   );
   const tasks = data?.tasks || [];
 
-  const activeTasks = tasks.filter((t: any) => t.status !== "done");
-  const completedTasks = tasks.filter((t: any) => t.status === "done");
+  const activeTasks = tasks.filter(
+    (t: any) => normalizeStatus(t.status) !== "done"
+  );
+  const completedTasks = tasks.filter(
+    (t: any) => normalizeStatus(t.status) === "done"
+  );
 
   if (!data) {
     return (
@@ -104,7 +111,7 @@ export default function ProjectTasks() {
                         className={`text-xs ${
                           task.dueDate &&
                           new Date(task.dueDate) < new Date() &&
-                          task.status !== "done"
+                          normalizeStatus(task.status) !== "done"
                             ? "text-red-600 font-semibold"
                             : "text-gray-400"
                         }`}
@@ -116,7 +123,7 @@ export default function ProjectTasks() {
                       </p>
                       {task.dueDate &&
                         new Date(task.dueDate) < new Date() &&
-                        task.status !== "done" && (
+                        normalizeStatus(task.status) !== "done" && (
                           <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded mt-1">
                             ⚠ Overdue
                           </span>

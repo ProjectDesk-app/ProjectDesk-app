@@ -9,11 +9,15 @@ import { LoadingState } from "@/components/LoadingState";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+const normalizeStatus = (status: unknown) =>
+  typeof status === "string" ? status.toLowerCase() : String(status ?? "").toLowerCase();
+
 function getTaskColor(t: any) {
+  const status = normalizeStatus(t.status);
   if (t.flagged) return "red";
-  if (t.status === "done") return "green";
-  if (t.status === "in_progress") return "blue";
-  if (t.status === "todo") return "gray";
+  if (status === "done") return "green";
+  if (status === "in_progress") return "blue";
+  if (status === "todo") return "gray";
   return "gray";
 }
 
@@ -52,14 +56,15 @@ export default function GanttPage() {
   // Enhanced getTaskColor for overdue and long-duration tasks
   function getEnhancedTaskColor(t: any, end: Date, durationDays: number) {
     const today = new Date();
+    const status = normalizeStatus(t.status);
     // Overdue: dueDate exists and is before today
     if (t.dueDate && new Date(t.dueDate) < today) return "red";
     // Long duration: duration > 30 days
     if (durationDays > 30) return "orange";
     if (t.flagged) return "red";
-    if (t.status === "done") return "green";
-    if (t.status === "in_progress") return "blue";
-    if (t.status === "todo") return "gray";
+    if (status === "done") return "green";
+    if (status === "in_progress") return "blue";
+    if (status === "todo") return "gray";
     return "gray";
   }
 
@@ -100,12 +105,13 @@ export default function GanttPage() {
       // Calculate durationDays for color logic
       const durationDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       const color = getEnhancedTaskColor(t, end, durationDays);
+      const status = normalizeStatus(t.status);
       return {
         id: String(t.id),
         name: t.title,
         start,
         end,
-        progress: t.status === "done" ? 100 : t.status === "in_progress" ? 50 : 0,
+        progress: status === "done" ? 100 : status === "in_progress" ? 50 : 0,
         dependencies: t.dependencyTaskId ? [String(t.dependencyTaskId)] : [],
         type: "task",
         styles: {

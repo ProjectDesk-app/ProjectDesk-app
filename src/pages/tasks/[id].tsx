@@ -104,6 +104,8 @@ export default function TaskDetail() {
   const task = data.task;
   const project = data.project || task?.project || null;
   const assignedUsers = task?.assignedUsers || [];
+  const normalizedTaskStatus =
+    typeof task?.status === "string" ? task.status.toLowerCase() : "";
 
   if (!task) {
     return (
@@ -363,13 +365,13 @@ export default function TaskDetail() {
           <button
             onClick={toggleComplete}
             className={`px-4 py-2 rounded-md transition ${
-              task?.status === "done"
+              normalizedTaskStatus === "done"
                 ? "bg-gray-300 text-gray-700"
                 : "bg-green-600 text-white hover:bg-green-700"
             }`}
-            disabled={task?.status === "done"}
+            disabled={normalizedTaskStatus === "done"}
           >
-            {task?.status === "done" ? "Completed" : "Mark as Completed"}
+            {normalizedTaskStatus === "done" ? "Completed" : "Mark as Completed"}
           </button>
           <button
             onClick={openEdit}
