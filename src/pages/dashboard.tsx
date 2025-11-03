@@ -8,6 +8,7 @@ import Layout from "@/components/Layout";
 import { Toaster } from "react-hot-toast";
 import { useState } from "react";
 import { LayoutDashboard } from "lucide-react";
+import { LoadingState } from "@/components/LoadingState";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -19,7 +20,16 @@ export default function Dashboard() {
   fetcher
 );
 
-  if (!data) return <Layout title="Dashboard"><p>Loading…</p></Layout>;
+  if (!data)
+    return (
+      <Layout title="Dashboard">
+        <LoadingState
+          title="Loading your workspace"
+          message="We’re pulling together your projects, filters, and metrics."
+          tone="brand"
+        />
+      </Layout>
+    );
 
   const projects = Array.isArray(data) ? data : [];
   const activeProjects = projects.filter((p: any) => !p.isCompleted);

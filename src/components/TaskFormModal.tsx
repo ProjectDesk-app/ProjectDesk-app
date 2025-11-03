@@ -6,6 +6,7 @@ export default function TaskFormModal({ projectId, isOpen, onClose, mutate }: an
   const [formData, setFormData] = useState({
     title: "",
     description: "",
+    startDate: "",
     dueDate: "",
   });
   const [users, setUsers] = useState<any[]>([]);
@@ -50,6 +51,7 @@ export default function TaskFormModal({ projectId, isOpen, onClose, mutate }: an
       });
       if (!res.ok) throw new Error("Failed to create task");
       toast.success("Task created!");
+      setFormData({ title: "", description: "", startDate: "", dueDate: "" });
       mutate(); // Refresh task list
       onClose();
     } catch (err) {
@@ -80,6 +82,15 @@ export default function TaskFormModal({ projectId, isOpen, onClose, mutate }: an
             name="description"
             placeholder="Description"
             value={formData.description}
+            onChange={handleChange}
+            className="border rounded w-full p-2"
+          />
+          <label htmlFor="startDate" className="block mb-1 font-medium">Start Date</label>
+          <input
+            type="date"
+            id="startDate"
+            name="startDate"
+            value={formData.startDate}
             onChange={handleChange}
             className="border rounded w-full p-2"
           />
