@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useState, useEffect, useMemo, type CSSProperties } from "react";
 import { GripVertical } from "lucide-react";
 import toast from "react-hot-toast";
+import { LoadingState } from "@/components/LoadingState";
 import {
   DndContext,
   closestCenter,
@@ -101,8 +102,22 @@ export default function TaskSetDetails() {
   };
 
   // Error/loading UI
-  if (error) return <Layout title="Error"><p className="p-6 text-red-600">Failed to load task set.</p></Layout>;
-  if (!data) return <Layout title="Loading..."><p className="p-6">Loading task templates...</p></Layout>;
+  if (error)
+    return (
+      <Layout title="Task Set">
+        <p className="p-6 text-red-600">Failed to load task set.</p>
+      </Layout>
+    );
+  if (!data)
+    return (
+      <Layout title="Task Set">
+        <LoadingState
+          title="Preparing task set"
+          message="We are loading template details so you can fine-tune them."
+          tone="brand"
+        />
+      </Layout>
+    );
 
   // Handle template update
   const handleUpdateTemplate = async (templateId: string) => {

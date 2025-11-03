@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { GraduationCap } from "lucide-react";
+import { LoadingState } from "@/components/LoadingState";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -15,7 +16,16 @@ export default function AssistanceGallery() {
   if (!userRole || (userRole !== "SUPERVISOR" && userRole !== "ADMIN"))
     return <p className="p-6 text-red-600">Access denied.</p>;
   if (error) return <p className="p-6 text-red-600">Error loading tasks.</p>;
-  if (!data) return <p className="p-6">Loading flagged tasks...</p>;
+  if (!data)
+    return (
+      <Layout title="Assistance Gallery">
+        <LoadingState
+          title="Gathering flagged tasks"
+          message="We're pulling the latest support requests from your teams."
+          tone="brand"
+        />
+      </Layout>
+    );
 
   const tasks = data.flaggedTasks || [];
 

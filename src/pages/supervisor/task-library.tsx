@@ -7,6 +7,7 @@ import TaskSetModal from "@/components/TaskSetModal";
 import ApplyTaskSetModal from "@/components/ApplyTaskSetModal";
 import useSWR from "swr";
 import { Layers } from "lucide-react";
+import { LoadingState } from "@/components/LoadingState";
 
 export default function TaskLibrary() {
   const { data: session } = useSession();
@@ -87,7 +88,11 @@ export default function TaskLibrary() {
         {/* Task set list */}
         <div className="border rounded-lg p-4 bg-white shadow-sm">
           {!data && !error ? (
-            <p>Loading...</p>
+            <LoadingState
+              fullScreen={false}
+              title="Loading task sets"
+              message="Give us a moment to gather your reusable templates."
+            />
           ) : error ? (
             <p>Could not load task sets.</p>
           ) : taskSets.length === 0 ? (
