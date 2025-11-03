@@ -61,6 +61,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ? (normalizedStatus as keyof typeof TaskStatus)
       : undefined;
 
+    const assignedUsersUpdate =
+      Array.isArray(assignedUserIds)
+        ? {
+            set: [],
+            ...(assignedUserIds.length > 0
+              ? { connect: assignedUserIds.map((userId: number) => ({ id: userId })) }
+              : {}),
+          }
+        : undefined;
+
     const updated = await prisma.task.update({
       where: { id: Number(id) },
       data: {
@@ -69,12 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         dueDate: typeof dueDate === 'string' ? new Date(dueDate) : undefined,
         dependencyTaskId: dependencyTaskId === undefined ? undefined : dependencyTaskId,
         duration: duration ? Number(duration) : undefined,
-        assignedUsers: {
-          set: [],
-          ...(Array.isArray(assignedUserIds) && assignedUserIds.length > 0
-            ? { connect: assignedUserIds.map((userId: number) => ({ id: userId })) }
-            : {}),
-        },
+        assignedUsers: assignedUsersUpdate,
       },
     });
 
