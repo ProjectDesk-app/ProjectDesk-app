@@ -108,13 +108,24 @@ export default function TaskDetail() {
   }
 
   async function toggleComplete() {
+    if (!task?.id) return;
+    setStatusUpdating(true);
     try {
-      const res = await fetch(`/api/tasks/${id}`, { method: "PUT" });
+      const res = await fetch(`/api/tasks`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: task.id, status: "done" }),
+      });
       if (!res.ok) throw new Error();
+      const updated = await res.json();
       toast.success("Task marked as complete!");
-      mutate();
+      setStatusSelect("done");
+      await mutate();
+      task.status = updated.status;
     } catch {
       toast.error("Failed to update task");
+    } finally {
+      setStatusUpdating(false);
     }
   }
 

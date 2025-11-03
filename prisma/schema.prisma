@@ -180,4 +180,7 @@ enum TaskStatus {
   AT_RISK
   COMPLETE
   BLOCKED
+  REVIEW
+  DEFERRED
+  DONE
 }
