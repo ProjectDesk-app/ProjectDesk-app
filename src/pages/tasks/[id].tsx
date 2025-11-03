@@ -231,14 +231,17 @@ export default function TaskDetail() {
 
   // Inline status update handler
   async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const newStatus = e.target.value.toLowerCase();
-    setStatusSelect(newStatus);
+    const selectedValue = e.target.value;
+    setStatusSelect(selectedValue);
     setStatusUpdating(true);
     try {
+      const normalizedForApi = selectedValue
+        ? selectedValue.toUpperCase().replace(/\s+/g, "_")
+        : selectedValue;
       const res = await fetch(`/api/tasks`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: task.id, status: newStatus }),
+        body: JSON.stringify({ id: task.id, status: normalizedForApi }),
       });
       if (!res.ok) throw new Error();
       const updated = await res.json();
