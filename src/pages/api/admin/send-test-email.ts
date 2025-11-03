@@ -1,11 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { sendEmail } from "@/lib/mailer";
 
+type AdminSession = Session & {
+  user?: Session["user"] & { role?: string };
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions as any);
-  if (!session?.user || (session.user as any).role !== "ADMIN") {
+  const session = (await getServerSession(req, res, authOptions as any)) as AdminSession | null;
+  if (!session?.user || session.user.role !== "ADMIN") {
     return res.status(403).json({ error: "Forbidden" });
   }
 
