@@ -1,6 +1,7 @@
 import useSWR from 'swr';
 import Layout from '@/components/Layout';
 import { Flag, MessageSquare, UserPlus } from 'lucide-react';
+import { LoadingState } from '@/components/LoadingState';
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -60,7 +61,12 @@ export default function NotificationsPage() {
       </div>
 
       {!data ? (
-        <p>Loading…</p>
+        <LoadingState
+          fullScreen={false}
+          title="Loading notifications"
+          message="Checking for new updates and reminders across your workspace."
+          tone="brand"
+        />
       ) : data.length === 0 ? (
         <p className="text-gray-600">No notifications.</p>
       ) : (

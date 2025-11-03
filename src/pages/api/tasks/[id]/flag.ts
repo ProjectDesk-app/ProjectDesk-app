@@ -17,6 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { id } = req.query;
     const taskId = Number(id);
     const userEmail = session.user?.email;
+    const sessionUserId = session.user?.id;
 
     const user = await prisma.user.findUnique({ where: { email: userEmail! } });
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -35,9 +36,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { id: taskId },
       data: { 
         flagged: !wasFlagged,
-        flaggedBy: {
-    connect: { id: session.user.id },
-        },
+        flaggedBy: sessionUserId
+          ? {
+              connect: { id: Number(sessionUserId) },
+            }
+          : undefined,
       },
       include: { flaggedBy: true },
     });

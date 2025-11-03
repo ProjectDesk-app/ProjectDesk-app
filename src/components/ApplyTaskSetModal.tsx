@@ -1,6 +1,7 @@
 import { Dialog } from "@headlessui/react";
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { Loader2 } from "lucide-react";
 
 interface ApplyTaskSetModalProps {
   open: boolean;
@@ -118,7 +119,10 @@ export default function ApplyTaskSetModal({ open: isOpen, onClose, taskSet }: Ap
 
           {/* Show loading, error, no projects, or project select dropdown */}
           {loadingProjects ? (
-            <p className="mb-4 text-gray-500">Loading projects...</p>
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50/70 px-3 py-2 text-sm text-blue-900">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Loading available projects…
+            </div>
           ) : fetchError ? (
             <p className="mb-4 text-red-600">{fetchError}</p>
           ) : projects.length === 0 ? (

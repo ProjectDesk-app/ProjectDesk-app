@@ -6,6 +6,8 @@ import { useState, useEffect } from "react";
 import StatusPill from "@/components/StatusPill";
 import { useSession } from "next-auth/react";
 import { QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
+import { Loader2 } from "lucide-react";
+import { LoadingState } from "@/components/LoadingState";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -91,7 +93,11 @@ export default function TaskDetail() {
   if (!data)
     return (
       <Layout title="Task">
-        <p>Loading task...</p>
+        <LoadingState
+          title="Loading task details"
+          message="We’re syncing the latest updates, collaborators, and timeline for this task."
+          tone="brand"
+        />
       </Layout>
     );
 
@@ -102,7 +108,11 @@ export default function TaskDetail() {
   if (!task) {
     return (
       <Layout title="Task">
-        <p>Loading task details...</p>
+        <LoadingState
+          title="Loading task details"
+          message="We’re syncing the latest updates, collaborators, and timeline for this task."
+          tone="brand"
+        />
       </Layout>
     );
   }
@@ -644,7 +654,10 @@ function CommentsSection({ taskId }: { taskId: string | number }) {
     <div className="bg-gray-50 border rounded p-4">
       {/* Loading/Error states */}
       {commentsLoading && (
-        <div className="text-gray-400 text-sm">Loading comments...</div>
+        <div className="mb-4 flex items-center gap-2 text-sm text-blue-900">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
+          Loading comments…
+        </div>
       )}
       {commentsError && (
         <div className="text-red-500 text-sm">Failed to load comments.</div>

@@ -4,6 +4,7 @@ import Layout from "@/components/Layout";
 import { ProjectLayout } from "@/components/ProjectLayout";
 import { toast, Toaster } from "react-hot-toast";
 import { useMemo, useState } from "react";
+import { LoadingState } from "@/components/LoadingState";
 
 type PendingTask = {
   id: number;
@@ -22,10 +23,11 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function ProjectOverview() {
   const router = useRouter();
-  const { id } = router.query;
+  const { id: rawId } = router.query;
+  const projectId = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const { data: project, error, mutate } = useSWR(
-    id ? `/api/projects/${id}` : null,
+    projectId ? `/api/projects/${projectId}` : null,
     fetcher
   );
 
@@ -62,10 +64,11 @@ export default function ProjectOverview() {
   }, [project]);
 
   const attemptProjectCompletion = async () => {
+    if (!projectId) return;
     if (!confirm("Mark this project as completed?")) return;
     setIsCompleting(true);
     try {
-      const res = await fetch(`/api/projects/${id}/complete`, {
+      const res = await fetch(`/api/projects/${projectId}/complete`, {
         method: "PUT",
       });
       let payload: any = null;
@@ -107,10 +110,10 @@ export default function ProjectOverview() {
   };
 
   const forceCompleteProject = async () => {
-    if (!id) return;
+    if (!projectId) return;
     setIsForceCompleting(true);
     try {
-      const res = await fetch(`/api/projects/${id}/complete`, {
+      const res = await fetch(`/api/projects/${projectId}/complete`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ forceComplete: true }),
@@ -164,14 +167,14 @@ export default function ProjectOverview() {
   };
 
   const sendUpdateRequest = async () => {
-    if (!id) return;
+    if (!projectId) return;
     if (selectedRecipients.length === 0) {
       toast.error("Select at least one team member.");
       return;
     }
     setIsSendingUpdate(true);
     try {
-      const res = await fetch(`/api/projects/${id}/request-update`, {
+      const res = await fetch(`/api/projects/${projectId}/request-update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -202,11 +205,11 @@ export default function ProjectOverview() {
   };
 
   const reactivateProject = async () => {
-    if (!id) return;
+    if (!projectId) return;
     if (!confirm("Reactivate this project?")) return;
     setIsReactivating(true);
     try {
-      const res = await fetch(`/api/projects/${id}/reactivate`, {
+      const res = await fetch(`/api/projects/${projectId}/reactivate`, {
         method: "PUT",
       });
       let payload: any = null;
@@ -235,8 +238,18 @@ export default function ProjectOverview() {
     }
   };
 
-  if (error) return <Layout title="Project">Failed to load project.</Layout>;
-  if (!project) return <Layout title="Project">Loading...</Layout>;
+  if (error)
+    return <Layout title="Project">Failed to load project.</Layout>;
+  if (!project)
+    return (
+      <Layout title="Project Overview">
+        <LoadingState
+          title="Loading project overview"
+          message="We’re gathering the latest updates, milestones, and team activity."
+          tone="brand"
+        />
+      </Layout>
+    );
 
   const statusLabel = project.isCompleted
     ? "Completed"
@@ -268,6 +281,8 @@ export default function ProjectOverview() {
       : 0;
 
 
+  const resolvedProjectId = projectId ?? String(project.id);
+
   return (
     <Layout title={`Project: ${project.title}`}>
       <div className="max-w-5xl mx-auto">
@@ -278,7 +293,7 @@ export default function ProjectOverview() {
           ← Back to Dashboard
         </button>
         <ProjectLayout
-          projectId={id as string}
+          projectId={resolvedProjectId}
           title={project.title}
           category={project.category}
         >
@@ -371,7 +386,7 @@ export default function ProjectOverview() {
             <div className="flex gap-3 pt-4">
               <button
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                onClick={() => router.push(`/projects/${id}/edit`)}
+                onClick={() => router.push(`/projects/${resolvedProjectId}/edit`)}
               >
                 Edit Project
               </button>

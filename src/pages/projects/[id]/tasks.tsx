@@ -7,10 +7,12 @@ import { toast, Toaster } from "react-hot-toast";
 import TaskFormModal from "@/components/TaskFormModal";
 import { useSession } from "next-auth/react";
 import StatusPill from "@/components/StatusPill";
+import { LoadingState } from "@/components/LoadingState";
 
 export default function ProjectTasks() {
   const router = useRouter();
-  const { id } = router.query;
+  const { id: rawId } = router.query;
+  const projectId = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role;
@@ -19,7 +21,7 @@ export default function ProjectTasks() {
 
   const fetcher = (url: string) => fetch(url).then((r) => r.json());
   const { data, mutate } = useSWR(
-    id ? `/api/projects/${id}/tasks` : null,
+    projectId ? `/api/projects/${projectId}/tasks` : null,
     fetcher
   );
   const tasks = data?.tasks || [];
@@ -27,7 +29,28 @@ export default function ProjectTasks() {
   const activeTasks = tasks.filter((t: any) => t.status !== "done");
   const completedTasks = tasks.filter((t: any) => t.status === "done");
 
-  if (!data) return <p>Loading tasks...</p>;
+  if (!data) {
+    return (
+      <Layout title="Project Tasks">
+        {projectId ? (
+          <ProjectLayout projectId={projectId} title="Tasks">
+            <LoadingState
+              fullScreen={false}
+              title="Loading project tasks"
+              message="We’re syncing the latest activity and assignments for this project."
+              tone="brand"
+            />
+          </ProjectLayout>
+        ) : (
+          <LoadingState
+            title="Loading project tasks"
+            message="We’re syncing the latest activity and assignments for this project."
+            tone="brand"
+          />
+        )}
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="Project Tasks">
@@ -38,7 +61,7 @@ export default function ProjectTasks() {
         >
           ← Back to Dashboard
         </button>
-        <ProjectLayout projectId={id as string} title="Tasks">
+        <ProjectLayout projectId={projectId as string} title="Tasks">
           <div className="p-6 text-gray-700">
             <>
               <div className="flex justify-between items-center mb-4">
@@ -51,7 +74,7 @@ export default function ProjectTasks() {
               </div>
 
               <TaskFormModal
-                projectId={id}
+                projectId={projectId}
                 isOpen={isModalOpen}
                 onClose={() => setModalOpen(false)}
                 mutate={mutate}

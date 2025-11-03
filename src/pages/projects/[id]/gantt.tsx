@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { ViewMode, Task, EventOption } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { useState } from "react";
+import { LoadingState } from "@/components/LoadingState";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -18,12 +19,22 @@ function getTaskColor(t: any) {
 
 export default function GanttPage() {
   const router = useRouter();
-  const { id } = router.query;
-  const { data: tasks, mutate } = useSWR(id ? `/api/tasks?projectId=${id}` : null, fetcher);
+  const { id: rawId } = router.query;
+  const projectId = Array.isArray(rawId) ? rawId[0] : rawId;
+  const { data: tasks, mutate } = useSWR(projectId ? `/api/tasks?projectId=${projectId}` : null, fetcher);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
   const [sortMode, setSortMode] = useState<"manual" | "start" | "due">("manual");
 
-  if (!tasks) return <Layout title="Gantt"><p>Loading…</p></Layout>;
+  if (!tasks)
+    return (
+      <Layout title="Gantt Chart">
+        <LoadingState
+          title="Preparing your Gantt chart"
+          message="We’re organising project tasks and timelines for a clear visual overview."
+          tone="brand"
+        />
+      </Layout>
+    );
 
   if (!tasks || tasks.length === 0) {
     return (
@@ -150,8 +161,8 @@ export default function GanttPage() {
   return (
     <Layout title="Gantt Chart">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Project #{id} Gantt Chart</h1>
-        <a href={`/projects/${id}`} className="text-sm border px-3 py-1 rounded-md">
+        <h1 className="text-2xl font-semibold">Project #{projectId} Gantt Chart</h1>
+        <a href={`/projects/${projectId}`} className="text-sm border px-3 py-1 rounded-md">
           Back to Project
         </a>
       </div>
