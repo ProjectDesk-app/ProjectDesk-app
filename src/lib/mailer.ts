@@ -17,14 +17,14 @@ export async function sendEmail(to: string, subject: string, message: string) {
     throw new Error(`Invalid recipient email address: ${to}`);
   }
 
-  const fromRaw = process.env.MAILGUN_FROM_ADDRESS;
-  const fromAddress = extractEmail(fromRaw);
+  const fromRaw = (process.env.MAILGUN_FROM_ADDRESS || "").trim();
+  const fromEmail = extractEmail(fromRaw);
   const domain = process.env.MAILGUN_DOMAIN;
 
   const apiKey = process.env.MAILGUN_API_KEY;
   const apiBaseUrl = process.env.MAILGUN_API_BASE_URL || "https://api.mailgun.net";
 
-  const missingConfig = !fromAddress || !domain || !apiKey;
+  const missingConfig = !fromEmail || !domain || !apiKey;
 
   const forceSend = process.env.MAILGUN_FORCE_SEND === "true";
   const shouldUseMock = missingConfig || (process.env.NODE_ENV !== "production" && !forceSend);
@@ -40,8 +40,11 @@ export async function sendEmail(to: string, subject: string, message: string) {
   }
 
   try {
+    const fromHeader =
+      fromRaw && /<[^<>]*@[^<>]+>/.test(fromRaw) ? fromRaw : fromEmail!;
+
     const body = new URLSearchParams({
-      from: fromRaw || fromAddress!,
+      from: fromHeader,
       to: normalizedRecipient,
       subject,
       text: message,
