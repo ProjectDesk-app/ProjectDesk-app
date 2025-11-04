@@ -41,3 +41,4 @@ coverage/
 .cache/
 .vercel
 .env*.local
+.eslintrc.json
