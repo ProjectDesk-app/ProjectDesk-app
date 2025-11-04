@@ -20,6 +20,7 @@ type SubscriptionResponse = {
   canSponsor: boolean;
   trialDaysRemaining: number | null;
   trialExpired: boolean;
+  isCancelled: boolean;
 };
 
 type SponsoredUser = {
@@ -81,10 +82,12 @@ export default function SupervisorDashboard() {
 
   const sponsoredUsers = sponsoredData?.sponsored ?? [];
   const pendingRequests = sponsoredData?.requests ?? [];
+  const isFreeTrial = subscriptionData?.subscriptionType === SubscriptionType.FREE_TRIAL;
   const canAddMore =
     subscriptionData?.canSponsor &&
     (subscriptionData?.sponsorSlotsRemaining ?? 0) > 0 &&
-    !subscriptionData?.trialExpired;
+    !subscriptionData?.trialExpired &&
+    !subscriptionData?.isCancelled;
 
   const subscriptionSummary = useMemo(() => {
     if (!subscriptionData) return null;
@@ -227,6 +230,11 @@ export default function SupervisorDashboard() {
                     Your trial has ended. Start a subscription to continue using ProjectDesk.
                   </p>
                 )}
+                {subscriptionData.isCancelled && (
+                  <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-xs font-medium text-red-700">
+                    Your subscription is cancelled. Renew to restore sponsorship access and sign in for collaborators.
+                  </p>
+                )}
               </dl>
             ) : (
               <p className="text-sm text-gray-500">Loading subscription details…</p>
@@ -243,9 +251,14 @@ export default function SupervisorDashboard() {
               subscription.
             </p>
             <div className="mt-4 space-y-3">
-              {subscriptionData && !canSponsorAccounts(subscriptionData.subscriptionType) && (
+              {subscriptionData && isFreeTrial && !subscriptionData.trialExpired && (
                 <p className="rounded-md bg-gray-100 px-3 py-2 text-xs font-medium text-gray-600">
                   Sponsorships are disabled while you are on a Free Trial. Start a subscription to invite others.
+                </p>
+              )}
+              {subscriptionData?.isCancelled && (
+                <p className="rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                  Your subscription is cancelled. Renew your plan before adding new sponsored accounts.
                 </p>
               )}
               {subscriptionData && subscriptionData.sponsorSlotsRemaining === 0 && (

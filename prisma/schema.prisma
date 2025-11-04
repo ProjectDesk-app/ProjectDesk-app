@@ -197,4 +197,5 @@ enum SubscriptionType {
   SUBSCRIBED
   FREE_TRIAL
   SPONSORED
+  CANCELLED
 }

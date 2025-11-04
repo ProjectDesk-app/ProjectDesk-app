@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "Access denied" });
   }
 
-  const supervisor = await prisma.user.findUnique({
+  let supervisor = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
       subscriptionType: true,
@@ -39,6 +39,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const now = new Date();
+  if (
+    supervisor.subscriptionType === SubscriptionType.SUBSCRIBED &&
+    supervisor.subscriptionExpiresAt &&
+    supervisor.subscriptionExpiresAt.getTime() < now.getTime()
+  ) {
+    supervisor = await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        subscriptionType: SubscriptionType.CANCELLED,
+      },
+      select: {
+        subscriptionType: true,
+        subscriptionStartedAt: true,
+        subscriptionExpiresAt: true,
+        sponsoredUsers: {
+          select: { id: true },
+        },
+      },
+    });
+  }
   const trialEndsAt = supervisor.subscriptionExpiresAt ?? null;
   const trialDaysRemaining =
     supervisor.subscriptionType === SubscriptionType.FREE_TRIAL && trialEndsAt
@@ -47,6 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const trialExpired =
     supervisor.subscriptionType === SubscriptionType.FREE_TRIAL &&
     (!!trialEndsAt && trialEndsAt.getTime() < now.getTime());
+  const isCancelled = supervisor.subscriptionType === SubscriptionType.CANCELLED;
 
   const canSponsor = canSponsorAccounts(supervisor.subscriptionType);
 
@@ -63,5 +84,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     canSponsor,
     trialDaysRemaining,
     trialExpired,
+    isCancelled,
   });
 }
