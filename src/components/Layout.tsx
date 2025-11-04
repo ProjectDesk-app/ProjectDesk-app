@@ -7,7 +7,7 @@ import { useRouter } from "next/router";
 import useSWR from "swr";
 import { Menu, Transition } from "@headlessui/react";
 import { BellIcon, ChevronDownIcon, UserCircleIcon } from "@heroicons/react/24/outline";
-import { LayoutDashboard, GraduationCap, Layers, ShieldCheck, CreditCard } from "lucide-react";
+import { LayoutDashboard, GraduationCap, Layers, ShieldCheck, CreditCard, AlertTriangle } from "lucide-react";
 
 import Logo from "@/assets/branding/ProjectDesk-Transparent.png";
 import { ProfileOverviewModal } from "@/components/account/ProfileOverviewModal";
@@ -15,6 +15,8 @@ import { EditNameModal } from "@/components/account/EditNameModal";
 import { ChangeEmailModal } from "@/components/account/ChangeEmailModal";
 import { ChangePasswordModal } from "@/components/account/ChangePasswordModal";
 import { SupportTicketModal } from "@/components/account/SupportTicketModal";
+import { canSponsorAccounts } from "@/lib/subscriptions";
+import type { SubscriptionType } from "@prisma/client";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -107,6 +109,11 @@ export default function Layout({
     }`;
 
   const pendingEmail = accountProfile?.pendingEmail || null;
+  const sponsorSubscriptionType = accountProfile?.sponsor?.subscriptionType as SubscriptionType | undefined;
+  const inactiveSponsorWarning =
+    accountProfile?.subscriptionType === "SPONSORED" &&
+    sponsorSubscriptionType &&
+    !canSponsorAccounts(sponsorSubscriptionType);
 
   const closeModal = () => setActiveModal(null);
 
@@ -260,6 +267,21 @@ export default function Layout({
           )}
         </div>
       </header>
+      {isAuthenticated && inactiveSponsorWarning && (
+        <div className="bg-amber-100 border-b border-amber-200">
+          <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-3 text-sm text-amber-900">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold">
+                Your sponsor’s subscription is inactive.
+              </p>
+              <p>
+                Please contact your supervisor or request a new sponsor to maintain access to ProjectDesk.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
 
       {session && (

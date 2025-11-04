@@ -12,6 +12,7 @@ type Profile = {
   sponsor?: {
     name?: string | null;
     email?: string | null;
+    subscriptionType?: string | null;
   } | null;
 };
 
@@ -31,6 +32,11 @@ export function ProfileOverviewModal({ open, onClose, profile }: Props) {
     : null;
   const subscriptionLabel = profile?.subscriptionType
     ? profile.subscriptionType.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+    : null;
+  const sponsorLabel = profile?.sponsor?.subscriptionType
+    ? profile.sponsor.subscriptionType
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase())
     : null;
 
   return (
@@ -85,6 +91,9 @@ export function ProfileOverviewModal({ open, onClose, profile }: Props) {
             {profile.sponsor.name || profile.sponsor.email || "—"}
             {profile.sponsor.email && (
               <span className="block text-xs text-gray-500">{profile.sponsor.email}</span>
+            )}
+            {sponsorLabel && (
+              <span className="block text-xs text-gray-500">Plan: {sponsorLabel}</span>
             )}
           </div>
         ) : (

@@ -77,9 +77,21 @@ export default function SignupPage() {
             <legend className="text-sm font-semibold text-gray-700">Account type</legend>
             <div className="grid gap-2">
               {[
-                { value: "SUPERVISOR", label: "Supervisor (default)", description: "Manage projects, start subscriptions, and sponsor collaborators." },
-                { value: "STUDENT", label: "Student", description: "Collaborate on assigned projects. Requires supervisor sponsorship." },
-                { value: "COLLABORATOR", label: "Collaborator", description: "Assist on shared projects. Requires supervisor sponsorship." },
+                {
+                  value: "SUPERVISOR",
+                  label: "Supervisor (default)",
+                  description: "Manage projects, start subscriptions, and sponsor collaborators.",
+                },
+                {
+                  value: "STUDENT",
+                  label: "Student",
+                  description: "Collaborate on assigned projects. Requires supervisor sponsorship.",
+                },
+                {
+                  value: "COLLABORATOR",
+                  label: "Collaborator",
+                  description: "Assist on shared projects. Requires a Principal Investigator to sponsor your access.",
+                },
               ].map((option) => (
                 <label
                   key={option.value}
@@ -152,7 +164,7 @@ export default function SignupPage() {
           {(accountType === "STUDENT" || accountType === "COLLABORATOR") && (
             <div className="space-y-1">
               <label htmlFor="signup-sponsor-email" className="text-sm font-medium text-gray-700">
-                Supervisor email
+                {accountType === "COLLABORATOR" ? "Principal Investigator email" : "Supervisor email"}
               </label>
               <input
                 id="signup-sponsor-email"
@@ -164,7 +176,7 @@ export default function SignupPage() {
                 placeholder="supervisor@example.ac.uk"
               />
               <p className="text-xs text-gray-500">
-                We&rsquo;ll email your supervisor so they can sponsor your access.
+                We&rsquo;ll email your {accountType === "COLLABORATOR" ? "Principal Investigator" : "supervisor"} so they can sponsor your access.
               </p>
             </div>
           )}
