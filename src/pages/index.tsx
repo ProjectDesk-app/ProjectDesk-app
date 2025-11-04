@@ -18,17 +18,21 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-gray-900">
             {session ? `Welcome back${welcomeName ? `, ${welcomeName}` : ""}!` : "Welcome to ProjectDesk"}
           </h1>
-          <p className="text-gray-600 max-w-2xl">
-            ProjectDesk keeps research teams organised, connected, and on track. Plan milestones, support students, and collaborate with confidence.
-          </p>
-          <a
-            href="https://projectdesk.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-md border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
-          >
-            Learn more
-          </a>
+          {!session && (
+            <>
+              <p className="text-gray-600 max-w-2xl">
+                ProjectDesk keeps research teams organised, connected, and on track. Plan milestones, support students, and collaborate with confidence.
+              </p>
+              <a
+                href="https://projectdesk.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-md border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+              >
+                Learn more
+              </a>
+            </>
+          )}
         </div>
         {session ? (
           <div className="flex flex-wrap justify-center gap-3">
