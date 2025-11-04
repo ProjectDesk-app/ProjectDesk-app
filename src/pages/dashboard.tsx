@@ -34,6 +34,8 @@ export default function Dashboard() {
   const projects = Array.isArray(data) ? data : [];
   const activeProjects = projects.filter((p: any) => !p.isCompleted);
   const completedProjects = projects.filter((p: any) => p.isCompleted);
+  const activeCount = activeProjects.length;
+  const completedCount = completedProjects.length;
 
   const renderProject = (p: any) => {
     const progress = (() => {
@@ -155,7 +157,9 @@ export default function Dashboard() {
         </label>
       </div>
 
-      <h2 className="text-xl font-semibold mb-3">Active Projects</h2>
+      <h2 className="text-xl font-semibold mb-3">
+        Active Projects ({activeCount})
+      </h2>
       <ul className="grid gap-4 sm:grid-cols-2">
         {activeProjects.map(renderProject)}
       </ul>
@@ -165,7 +169,7 @@ export default function Dashboard() {
           className="text-xl font-semibold mb-3 cursor-pointer flex items-center justify-between"
           onClick={() => setShowCompleted(!showCompleted)}
         >
-          Completed Projects
+          Completed Projects ({completedCount})
           <span className="text-sm text-gray-500">
             {showCompleted ? "▲ Hide" : "▼ Show"}
           </span>
