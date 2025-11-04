@@ -1,0 +1,12 @@
+-- CreateEnum
+CREATE TYPE "SubscriptionType" AS ENUM ('ADMIN_APPROVED', 'SUBSCRIBED', 'FREE_TRIAL', 'SPONSORED');
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "sponsorId" INTEGER,
+ADD COLUMN     "subscriptionExpiresAt" TIMESTAMP(3),
+ADD COLUMN     "subscriptionStartedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "subscriptionType" "SubscriptionType" NOT NULL DEFAULT 'FREE_TRIAL';
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_sponsorId_fkey" FOREIGN KEY ("sponsorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
