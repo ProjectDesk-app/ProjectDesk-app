@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Layout from "@/components/Layout";
 
@@ -10,10 +10,13 @@ export default function VerifyEmailPage() {
   const { token } = router.query;
   const [status, setStatus] = useState<Status>("loading");
   const [message, setMessage] = useState<string | null>(null);
+  const handledRef = useRef(false);
 
   useEffect(() => {
     const verify = async () => {
+      if (handledRef.current) return;
       if (!token || typeof token !== "string") return;
+      handledRef.current = true;
       setStatus("loading");
       try {
         const res = await fetch("/api/auth/verify-email", {
