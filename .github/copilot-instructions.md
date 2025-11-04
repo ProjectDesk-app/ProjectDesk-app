@@ -11,6 +11,7 @@ ProjectDesk is a web-based project management application designed for academic 
   - Azure AD (configurable via environment variables)
 - **Styling**: Tailwind CSS
 - **UI Components**: Headless UI, Heroicons, Lucide React
+- **Notifications**: react-hot-toast for user feedback
 - **Email**: AWS SES
 - **Drag & Drop**: @dnd-kit
 - **State Management**: SWR for data fetching
