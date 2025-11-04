@@ -9,13 +9,20 @@ datasource db {
 
 model User {
   id                    Int             @id @default(autoincrement())
+  createdAt             DateTime        @default(now())
   name                  String?
   email                 String          @unique
   supervisorId          Int?
+  sponsorId             Int?
   passwordHash          String?
   role                  UserRole        @default(STUDENT)
   emailVerified         DateTime?
   pendingEmail          String?
+  subscriptionType      SubscriptionType @default(FREE_TRIAL)
+  subscriptionStartedAt DateTime        @default(now())
+  subscriptionExpiresAt DateTime?
+  sponsor               User?           @relation("UserSponsor", fields: [sponsorId], references: [id])
+  sponsoredUsers        User[]          @relation("UserSponsor")
   Comment               Comment[]
   sentNotifications     Notification[]  @relation("ActorNotifications")
   receivedNotifications Notification[]  @relation("RecipientNotifications")
@@ -183,4 +190,11 @@ enum TaskStatus {
   REVIEW
   DEFERRED
   DONE
+}
+
+enum SubscriptionType {
+  ADMIN_APPROVED
+  SUBSCRIBED
+  FREE_TRIAL
+  SPONSORED
 }

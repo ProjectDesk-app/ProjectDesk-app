@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import Layout from "@/components/Layout";
@@ -7,9 +7,27 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<"SUPERVISOR" | "STUDENT" | "COLLABORATOR">("SUPERVISOR");
+  const [sponsorEmail, setSponsorEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const accountDescription = useMemo(() => {
+    if (accountType === "SUPERVISOR") {
+      return "Create a supervisor account. You'll start with an 8-day free trial and can begin a subscription to unlock sponsorships.";
+    }
+    if (accountType === "STUDENT") {
+      return "Request access as a student. We'll notify your supervisor so they can sponsor your account.";
+    }
+    return "Request access as a collaborator. We'll notify your supervisor so they can sponsor your account.";
+  }, [accountType]);
+
+  useEffect(() => {
+    if (accountType === "SUPERVISOR") {
+      setSponsorEmail("");
+    }
+  }, [accountType]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -20,7 +38,13 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          accountType,
+          sponsorEmail: accountType === "SUPERVISOR" ? null : sponsorEmail,
+        }),
       });
       const payload = await res.json();
       if (!res.ok) {
@@ -30,6 +54,7 @@ export default function SignupPage() {
       setName("");
       setEmail("");
       setPassword("");
+      setSponsorEmail("");
     } catch (err: any) {
       setError(err?.message || "We couldn’t create your account");
     } finally {
@@ -48,6 +73,37 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold text-gray-700">Account type</legend>
+            <div className="grid gap-2">
+              {[
+                { value: "SUPERVISOR", label: "Supervisor (default)", description: "Manage projects, start subscriptions, and sponsor collaborators." },
+                { value: "STUDENT", label: "Student", description: "Collaborate on assigned projects. Requires supervisor sponsorship." },
+                { value: "COLLABORATOR", label: "Collaborator", description: "Assist on shared projects. Requires supervisor sponsorship." },
+              ].map((option) => (
+                <label
+                  key={option.value}
+                  className={`flex cursor-pointer flex-col rounded-md border px-3 py-2 text-sm transition ${
+                    accountType === option.value ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="accountType"
+                      value={option.value}
+                      checked={accountType === option.value}
+                      onChange={() => setAccountType(option.value as typeof accountType)}
+                    />
+                    <span className="font-medium text-gray-900">{option.label}</span>
+                  </span>
+                  <span className="pl-6 text-xs text-gray-600">{option.description}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500">{accountDescription}</p>
+          </fieldset>
+
           <div className="space-y-1">
             <label htmlFor="signup-name" className="text-sm font-medium text-gray-700">
               Full name
@@ -93,6 +149,25 @@ export default function SignupPage() {
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           {message && <p className="text-sm text-green-600">{message}</p>}
+          {(accountType === "STUDENT" || accountType === "COLLABORATOR") && (
+            <div className="space-y-1">
+              <label htmlFor="signup-sponsor-email" className="text-sm font-medium text-gray-700">
+                Supervisor email
+              </label>
+              <input
+                id="signup-sponsor-email"
+                type="email"
+                required
+                value={sponsorEmail}
+                onChange={(e) => setSponsorEmail(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                placeholder="supervisor@example.ac.uk"
+              />
+              <p className="text-xs text-gray-500">
+                We&rsquo;ll email your supervisor so they can sponsor your access.
+              </p>
+            </div>
+          )}
           <button
             type="submit"
             disabled={loading}

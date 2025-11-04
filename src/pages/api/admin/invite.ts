@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
-import type { UserRole } from "@prisma/client";
+import { SubscriptionType, type UserRole } from "@prisma/client";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -31,11 +31,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     update: {
       name: name?.trim() || undefined,
       role: resolvedRole,
+      subscriptionType: SubscriptionType.ADMIN_APPROVED,
+      subscriptionExpiresAt: null,
     },
     create: {
       email: normalized,
       name: name?.trim() || null,
       role: resolvedRole,
+      subscriptionType: SubscriptionType.ADMIN_APPROVED,
+      subscriptionExpiresAt: null,
     },
   });
 

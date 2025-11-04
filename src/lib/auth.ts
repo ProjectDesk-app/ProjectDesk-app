@@ -3,6 +3,7 @@ import AzureAD from 'next-auth/providers/azure-ad';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { SubscriptionType } from '@prisma/client';
 
 const azureEnabled = process.env.AZURE_AD_ENABLED === 'true';
 const localEnabled = process.env.LOCAL_AUTH_ENABLED !== 'false';
@@ -36,7 +37,26 @@ export const authOptions = {
               if (!user || !user.passwordHash) return null;
               const ok = await bcrypt.compare(credentials.password, user.passwordHash);
               if (!ok) return null;
-              return { id: String(user.id), name: user.name ?? user.email, email: user.email, role: user.role } as any;
+              if (user.subscriptionType === SubscriptionType.SPONSORED && !user.sponsorId) {
+                throw new Error('Awaiting sponsorship approval');
+              }
+              if (
+                user.subscriptionType === SubscriptionType.FREE_TRIAL &&
+                user.subscriptionExpiresAt &&
+                user.subscriptionExpiresAt.getTime() < Date.now()
+              ) {
+                throw new Error('Your free trial has ended');
+              }
+              return {
+                id: String(user.id),
+                name: user.name ?? user.email,
+                email: user.email,
+                role: user.role,
+                subscriptionType: user.subscriptionType,
+                subscriptionStartedAt: user.subscriptionStartedAt,
+                subscriptionExpiresAt: user.subscriptionExpiresAt,
+                sponsorId: user.sponsorId,
+              } as any;
             },
           }),
         ]
@@ -47,6 +67,39 @@ export const authOptions = {
       if (user) {
         token.id = (user as any).id ?? token.id;
         token.role = (user as any).role ?? token.role;
+        token.subscriptionType = (user as any).subscriptionType ?? token.subscriptionType;
+        token.subscriptionStartedAt = (user as any).subscriptionStartedAt
+          ? new Date((user as any).subscriptionStartedAt).toISOString()
+          : token.subscriptionStartedAt ?? null;
+        token.subscriptionExpiresAt = (user as any).subscriptionExpiresAt
+          ? new Date((user as any).subscriptionExpiresAt).toISOString()
+          : token.subscriptionExpiresAt ?? null;
+        token.sponsorId =
+          typeof (user as any).sponsorId === 'number'
+            ? (user as any).sponsorId
+            : (user as any).sponsorId != null
+            ? Number((user as any).sponsorId)
+            : token.sponsorId ?? null;
+      } else if (!token.subscriptionType && token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: Number(token.id) },
+          select: {
+            subscriptionType: true,
+            subscriptionStartedAt: true,
+            subscriptionExpiresAt: true,
+            sponsorId: true,
+          },
+        });
+        if (dbUser) {
+          token.subscriptionType = dbUser.subscriptionType;
+          token.subscriptionStartedAt = dbUser.subscriptionStartedAt
+            ? dbUser.subscriptionStartedAt.toISOString()
+            : null;
+          token.subscriptionExpiresAt = dbUser.subscriptionExpiresAt
+            ? dbUser.subscriptionExpiresAt.toISOString()
+            : null;
+          token.sponsorId = dbUser.sponsorId ?? null;
+        }
       }
       return token;
     },
@@ -54,6 +107,10 @@ export const authOptions = {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
+        (session.user as any).subscriptionType = token.subscriptionType;
+        (session.user as any).subscriptionStartedAt = token.subscriptionStartedAt ?? null;
+        (session.user as any).subscriptionExpiresAt = token.subscriptionExpiresAt ?? null;
+        (session.user as any).sponsorId = token.sponsorId ?? null;
       }
       return session;
     },

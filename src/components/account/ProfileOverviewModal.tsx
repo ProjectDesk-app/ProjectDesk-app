@@ -6,6 +6,13 @@ type Profile = {
   pendingEmail?: string | null;
   emailVerified?: string | Date | null;
   role?: string | null;
+  subscriptionType?: string | null;
+  subscriptionStartedAt?: string | Date | null;
+  subscriptionExpiresAt?: string | Date | null;
+  sponsor?: {
+    name?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 type Props = {
@@ -16,6 +23,15 @@ type Props = {
 
 export function ProfileOverviewModal({ open, onClose, profile }: Props) {
   const verified = profile?.emailVerified ? new Date(profile.emailVerified) : null;
+  const subscriptionStarted = profile?.subscriptionStartedAt
+    ? new Date(profile.subscriptionStartedAt)
+    : null;
+  const subscriptionEnds = profile?.subscriptionExpiresAt
+    ? new Date(profile.subscriptionExpiresAt)
+    : null;
+  const subscriptionLabel = profile?.subscriptionType
+    ? profile.subscriptionType.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+    : null;
 
   return (
     <ModalShell
@@ -53,6 +69,27 @@ export function ProfileOverviewModal({ open, onClose, profile }: Props) {
         <p className="font-medium text-gray-900">
           {verified ? verified.toLocaleString() : "Awaiting verification"}
         </p>
+      </div>
+      <div>
+        <p className="text-xs uppercase text-gray-500">Subscription</p>
+        <p className="font-medium text-gray-900">{subscriptionLabel || "—"}</p>
+        <p className="text-xs text-gray-500">
+          {subscriptionStarted ? `Started ${subscriptionStarted.toLocaleDateString()}` : ""}
+          {subscriptionEnds ? ` • Expires ${subscriptionEnds.toLocaleDateString()}` : ""}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs uppercase text-gray-500">Sponsor</p>
+        {profile?.sponsor ? (
+          <div className="font-medium text-gray-900">
+            {profile.sponsor.name || profile.sponsor.email || "—"}
+            {profile.sponsor.email && (
+              <span className="block text-xs text-gray-500">{profile.sponsor.email}</span>
+            )}
+          </div>
+        ) : (
+          <p className="font-medium text-gray-900">—</p>
+        )}
       </div>
     </ModalShell>
   );

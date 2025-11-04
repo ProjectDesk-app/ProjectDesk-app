@@ -20,6 +20,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pendingEmail: true,
         emailVerified: true,
         role: true,
+        subscriptionType: true,
+        subscriptionStartedAt: true,
+        subscriptionExpiresAt: true,
+        sponsor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     });
     return res.status(200).json(user);

@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { sendEmail } from "@/lib/mailer";
+import { SubscriptionType, UserRole } from "@prisma/client";
+import {
+  SUPERVISOR_SPONSOR_LIMIT,
+  canSponsorAccounts,
+} from "@/lib/subscriptions";
 
 type MemberInput = {
   id?: number;
@@ -66,7 +71,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { title, description, startDate, endDate, category, members } = req.body;
 
       const studentMembers = await resolveMembers(members?.students, "STUDENT");
-      const collaboratorMembers = await resolveMembers(members?.collaborators, "COLLABORATOR");
+      const collaboratorMembers = await resolveMembers(
+        members?.collaborators,
+        "COLLABORATOR"
+      );
+
+      const sponsorAccount = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          subscriptionType: true,
+          sponsoredUsers: { select: { id: true } },
+        },
+      });
+
+      if (!sponsorAccount) {
+        return res.status(404).json({ error: "Supervisor record not found" });
+      }
+
+      const potentialSponsorees = [...studentMembers, ...collaboratorMembers]
+        .map((entry) => entry.user)
+        .filter(
+          (user) => user.role === UserRole.STUDENT || user.role === UserRole.COLLABORATOR
+        );
+
+      const conflictingSponsor = potentialSponsorees.find(
+        (user) => user.sponsorId && user.sponsorId !== session.user.id
+      );
+      if (conflictingSponsor) {
+        return res.status(409).json({
+          error: `User ${conflictingSponsor.email} is already sponsored by another supervisor`,
+        });
+      }
+
+      const additionalSponsorships = potentialSponsorees.filter(
+        (user) => !user.sponsorId
+      ).length;
+
+      if (
+        additionalSponsorships > 0 &&
+        !canSponsorAccounts(sponsorAccount.subscriptionType)
+      ) {
+        return res.status(403).json({
+          error: "An active subscription is required to sponsor additional accounts",
+        });
+      }
+
+      const currentSponsoredCount = sponsorAccount.sponsoredUsers.length;
+      if (
+        currentSponsoredCount + additionalSponsorships >
+        SUPERVISOR_SPONSOR_LIMIT
+      ) {
+        return res.status(400).json({
+          error: `Sponsoring these members would exceed the limit of ${SUPERVISOR_SPONSOR_LIMIT} accounts`,
+        });
+      }
 
       const project = await prisma.project.create({
         data: {
@@ -92,6 +150,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       const invitees = [...studentMembers, ...collaboratorMembers];
+      const usersToSponsor = invitees
+        .map((entry) => entry.user)
+        .filter(
+          (user) =>
+            (user.role === UserRole.STUDENT || user.role === UserRole.COLLABORATOR) &&
+            user.sponsorId !== session.user.id
+        );
+
+      if (usersToSponsor.length > 0) {
+        await prisma.user.updateMany({
+          where: { id: { in: usersToSponsor.map((user) => user.id) } },
+          data: {
+            sponsorId: session.user.id,
+            supervisorId: session.user.id,
+            subscriptionType: SubscriptionType.SPONSORED,
+            subscriptionExpiresAt: null,
+          },
+        });
+      }
+
       await Promise.all(
         invitees.map((entry) =>
           sendEmail(
