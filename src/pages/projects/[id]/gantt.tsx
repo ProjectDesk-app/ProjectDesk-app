@@ -4,7 +4,7 @@ import Layout from "@/components/Layout";
 import dynamic from "next/dynamic";
 import { ViewMode, Task, EventOption } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LoadingState } from "@/components/LoadingState";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -28,6 +28,17 @@ export default function GanttPage() {
   const { data: tasks, mutate } = useSWR(projectId ? `/api/tasks?projectId=${projectId}` : null, fetcher);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
   const [sortMode, setSortMode] = useState<"manual" | "start" | "due">("manual");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const updateIsMobile = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 640);
+    };
+    updateIsMobile();
+    window.addEventListener("resize", updateIsMobile);
+    return () => window.removeEventListener("resize", updateIsMobile);
+  }, []);
 
   if (!tasks)
     return (
@@ -154,11 +165,14 @@ export default function GanttPage() {
 
   function CustomTooltip({ task }: { task: Task }) {
     const durationDays = Math.round((task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const shortDateFormatter = new Intl.DateTimeFormat(undefined, isMobile
+      ? { day: "2-digit", month: "2-digit", year: "2-digit" }
+      : { year: "numeric", month: "short", day: "numeric" });
     return (
       <div className="p-2 bg-white border rounded shadow-md text-sm max-w-xs">
         <div><strong>{task.name}</strong></div>
-        <div>Start: {task.start.toLocaleDateString()}</div>
-        <div>End: {task.end.toLocaleDateString()}</div>
+        <div>Start: {shortDateFormatter.format(task.start)}</div>
+        <div>End: {shortDateFormatter.format(task.end)}</div>
         <div>Duration: {durationDays} day{durationDays !== 1 ? 's' : ''}</div>
       </div>
     );
@@ -166,15 +180,20 @@ export default function GanttPage() {
 
   return (
     <Layout title="Gantt Chart">
-      <div className="flex items-center justify-between mb-4">
+      {isMobile && (
+        <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+          For the best experience, try viewing the Gantt chart on a larger screen. Dates and layout are condensed for mobile.
+        </div>
+      )}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
         <h1 className="text-2xl font-semibold">Project #{projectId} Gantt Chart</h1>
         <a href={`/projects/${projectId}`} className="text-sm border px-3 py-1 rounded-md">
           Back to Project
         </a>
       </div>
 
-      <div className="mb-4 flex justify-between items-center">
-        <div className="flex space-x-2">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-wrap gap-2">
           <button
             className={`px-3 py-1 rounded-md border ${viewMode === ViewMode.Day ? "bg-blue-500 text-white" : ""}`}
             onClick={() => setViewMode(ViewMode.Day)}
@@ -195,7 +214,7 @@ export default function GanttPage() {
           </button>
         </div>
 
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <button
             className={`px-3 py-1 rounded-md border ${sortMode === "manual" ? "bg-blue-500 text-white" : ""}`}
             onClick={() => setSortMode("manual")}
