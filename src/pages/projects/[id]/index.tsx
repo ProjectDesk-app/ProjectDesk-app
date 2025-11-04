@@ -174,7 +174,7 @@ export default function ProjectOverview() {
   };
 
   const sendUpdateRequest = async () => {
-    if (!projectId || !isValidProjectId(projectId)) {
+    if (!isValidProjectId(projectId)) {
       toast.error("Invalid project ID.");
       return;
     }
