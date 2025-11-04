@@ -18,7 +18,7 @@ export default function AssistanceGallery() {
   if (error) return <p className="p-6 text-red-600">Error loading tasks.</p>;
   if (!data)
     return (
-      <Layout title="Assistance Gallery">
+      <Layout title="Support Hub">
         <LoadingState
           title="Gathering flagged tasks"
           message="We're pulling the latest support requests from your teams."
@@ -30,12 +30,12 @@ export default function AssistanceGallery() {
   const tasks = data.flaggedTasks || [];
 
   return (
-    <Layout title="Assistance Gallery">
+    <Layout title="Support Hub">
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-5 shadow-sm">
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
             <GraduationCap className="h-6 w-6 text-gray-800" />
-            <span>Student Support Hub</span>
+            <span>Support Hub</span>
           </h1>
           <p className="mt-2 text-sm text-blue-900">
             Review flagged tasks from your teams and respond quickly to unblock progress across projects.

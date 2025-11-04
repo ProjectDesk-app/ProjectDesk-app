@@ -43,7 +43,7 @@ export default function Layout({
         icon: LayoutDashboard,
       },
       {
-        label: "Student Support Hub",
+        label: "Support Hub",
         href: "/assistance",
         roles: ["SUPERVISOR", "ADMIN"],
         icon: GraduationCap,
