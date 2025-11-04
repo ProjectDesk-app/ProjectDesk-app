@@ -21,14 +21,11 @@ type TeamMember = {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// Only allow project IDs that are positive integers or safe slugs
+// Only allow project IDs that are positive integers
 function isValidProjectId(id: unknown): id is string {
-  return (
-    typeof id === "string" &&
-    /^[a-zA-Z0-9_-]+$/.test(id) && // adjust regex to your expected format
-    !id.includes("../") && // basic path traversal defense
-    id.length > 0 && id.length <= 64
-  );
+  if (typeof id !== "string") return false;
+  const num = Number(id);
+  return !isNaN(num) && Number.isInteger(num) && num > 0;
 }
 
 export default function ProjectOverview() {
