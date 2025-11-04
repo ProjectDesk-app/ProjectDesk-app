@@ -44,8 +44,8 @@ export default function AdminEmailTest() {
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
           <h1 className="text-2xl font-semibold text-gray-900">Test email delivery</h1>
           <p className="mt-2 text-sm text-amber-800">
-            Use this page to verify that AWS SES credentials are working. Messages sent here will be delivered to the
-            recipient exactly as entered, so double-check before you send.
+            Use this page to verify that your Mailgun configuration is working. Messages sent here will be delivered to
+            the recipient exactly as entered, so double-check before you send.
           </p>
           <p className="mt-2 text-xs text-amber-700">
             Tip: keep this page for internal use only.{" "}
