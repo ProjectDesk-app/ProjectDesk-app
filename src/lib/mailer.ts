@@ -17,7 +17,8 @@ export async function sendEmail(to: string, subject: string, message: string) {
     throw new Error(`Invalid recipient email address: ${to}`);
   }
 
-  const fromAddress = process.env.MAILGUN_FROM_ADDRESS;
+  const fromRaw = process.env.MAILGUN_FROM_ADDRESS;
+  const fromAddress = extractEmail(fromRaw);
   const domain = process.env.MAILGUN_DOMAIN;
 
   const apiKey = process.env.MAILGUN_API_KEY;
