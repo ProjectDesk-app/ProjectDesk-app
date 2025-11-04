@@ -59,8 +59,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? status.toUpperCase().replace(/\s+/g, '_')
         : undefined;
 
+    const allowedStatuses = new Set([
+      "TODO",
+      "IN_PROGRESS",
+      "BEHIND_SCHEDULE",
+      "AT_RISK",
+      "COMPLETE",
+      "BLOCKED",
+      "REVIEW",
+      "DEFERRED",
+      "DONE",
+    ]);
+
     const statusForUpdate =
-      normalizedStatus && Object.values(TaskStatus).includes(normalizedStatus as TaskStatus)
+      normalizedStatus && allowedStatuses.has(normalizedStatus)
         ? (normalizedStatus as TaskStatus)
         : undefined;
 
