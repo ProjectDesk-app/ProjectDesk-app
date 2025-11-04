@@ -38,11 +38,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
   const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
-  await sendEmail(
-    normalizedEmail,
-    "Reset your ProjectDesk password",
-    `Hello ${user.name || "there"},\n\nYou requested to reset your ProjectDesk password.\nUse the one-time link below to choose a new password:\n${resetLink}\n\nIf you didn't request this change, you can ignore this email.\n\nThanks,\nProjectDesk`
-  );
+  try {
+    await sendEmail(
+      normalizedEmail,
+      "Reset your ProjectDesk password",
+      `Hello ${user.name || "there"},\n\nYou requested to reset your ProjectDesk password.\nUse the one-time link below to choose a new password:\n${resetLink}\n\nIf you didn't request this change, you can ignore this email.\n\nThanks,\nProjectDesk`
+    );
+  } catch (error) {
+    console.error("Password reset email failed:", error);
+    return res
+      .status(500)
+      .json({ error: "We couldn’t send the reset email. Please try again shortly." });
+  }
 
   return res.status(200).json({ message: "Password reset email sent" });
 }
