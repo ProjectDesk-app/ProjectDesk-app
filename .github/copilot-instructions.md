@@ -12,7 +12,7 @@ ProjectDesk is a web-based project management application designed for academic 
 - **Styling**: Tailwind CSS
 - **UI Components**: Headless UI, Heroicons, Lucide React
 - **Notifications**: react-hot-toast for user feedback
-- **Email**: AWS SES
+- **Email**: MailGun
 - **Drag & Drop**: @dnd-kit
 - **State Management**: SWR for data fetching
 
@@ -128,8 +128,9 @@ prisma/
 - `DATABASE_URL`: PostgreSQL connection string
 - `NEXTAUTH_SECRET`: NextAuth secret key
 - `NEXTAUTH_URL`: Application URL
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`: For SES email
-- `AZURE_AD_CLIENT_ID`, `AZURE_AD_CLIENT_SECRET`, `AZURE_AD_TENANT_ID`: For Azure AD (optional)
+- `MAILGUN_API_KEY`: Mailgun API key
+- `MAILGUN_DOMAIN`: Mailgun domain
+- `MAILGUN_FROM_ADDRESS`: Mailgun from address
 
 ### Code Style
 - Use 2-space indentation

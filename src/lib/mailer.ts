@@ -41,7 +41,7 @@ export async function sendEmail(to: string, subject: string, message: string) {
 
   try {
     const body = new URLSearchParams({
-      from: fromAddress!,
+      from: fromRaw || fromAddress!,
       to: normalizedRecipient,
       subject,
       text: message,
