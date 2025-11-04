@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import useSWR from "swr";
 import Layout from "@/components/Layout";
 import dynamic from "next/dynamic";
-import { ViewMode, Task, EventOption } from "gantt-task-react";
+import { ViewMode, Task } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { useEffect, useState } from "react";
 import { LoadingState } from "@/components/LoadingState";
@@ -26,6 +26,7 @@ export default function GanttPage() {
   const { id: rawId } = router.query;
   const projectId = Array.isArray(rawId) ? rawId[0] : rawId;
   const { data: tasks, mutate } = useSWR(projectId ? `/api/tasks?projectId=${projectId}` : null, fetcher);
+  const { data: project } = useSWR(projectId ? `/api/projects/${projectId}` : null, fetcher);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
   const [sortMode, setSortMode] = useState<"manual" | "start" | "due">("manual");
   const [isMobile, setIsMobile] = useState(false);
@@ -40,9 +41,12 @@ export default function GanttPage() {
     return () => window.removeEventListener("resize", updateIsMobile);
   }, []);
 
+  const projectTitle = project?.title || (projectId ? `Project ${projectId}` : "Project");
+  const pageTitle = `${projectTitle} Gantt Chart`;
+
   if (!tasks)
     return (
-      <Layout title="Gantt Chart">
+      <Layout title={pageTitle}>
         <LoadingState
           title="Preparing your Gantt chart"
           message="We’re organising project tasks and timelines for a clear visual overview."
@@ -53,7 +57,7 @@ export default function GanttPage() {
 
   if (!tasks || tasks.length === 0) {
     return (
-      <Layout title="Gantt Chart">
+      <Layout title={pageTitle}>
         <div className="max-w-5xl mx-auto">
           <div className="p-6 border rounded-md bg-gray-50 text-center text-gray-600">
             <h2 className="text-lg font-semibold mb-2">No Tasks Available</h2>
@@ -179,14 +183,14 @@ export default function GanttPage() {
   }
 
   return (
-    <Layout title="Gantt Chart">
+    <Layout title={pageTitle}>
       {isMobile && (
         <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
-          For the best experience, try viewing the Gantt chart on a larger screen. Dates and layout are condensed for mobile.
+          For the best experience, try viewing the Gantt chart on a larger screen.
         </div>
       )}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Project #{projectId} Gantt Chart</h1>
+        <h1 className="text-2xl font-semibold">{pageTitle}</h1>
         <a href={`/projects/${projectId}`} className="text-sm border px-3 py-1 rounded-md">
           Back to Project
         </a>
@@ -233,18 +237,55 @@ export default function GanttPage() {
           >
             Due Date
           </button>
+          <button
+            className="px-3 py-1 rounded-md border border-blue-500 text-blue-600 hover:bg-blue-50"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.print();
+              }
+            }}
+            type="button"
+          >
+            Export PDF
+          </button>
         </div>
       </div>
 
-      <div className="overflow-auto border rounded-md p-2">
-  <GanttComponent
-    tasks={ganttTasks}
-    viewMode={viewMode}
-    onDateChange={handleDateChange}
-    onProgressChange={handleProgressChange}
-    TooltipContent={CustomTooltip}
-  />
-</div>
+      <div id="gantt-print-area" className="overflow-auto border rounded-md p-2 bg-white">
+        <GanttComponent
+          tasks={ganttTasks}
+          viewMode={viewMode}
+          onDateChange={handleDateChange}
+          onProgressChange={handleProgressChange}
+          TooltipContent={CustomTooltip}
+        />
+      </div>
+      <style jsx global>{`
+        @media print {
+          body {
+            padding: 0 !important;
+            margin: 0 !important;
+            background: #fff !important;
+          }
+          body * {
+            visibility: hidden;
+          }
+          #gantt-print-area,
+          #gantt-print-area * {
+            visibility: visible;
+          }
+          #gantt-print-area {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: auto;
+            overflow: visible !important;
+            box-shadow: none !important;
+            border: none !important;
+            padding: 16px !important;
+          }
+        }
+      `}</style>
     </Layout>
   );
 }
