@@ -65,6 +65,7 @@ export async function sendEmail(to: string, subject: string, message: string) {
     }
   } catch (error) {
     console.error("[Email] Failed to send message via Mailgun:", error);
+    console.log("from address:", { fromHeader });
     logMockEmail(normalizedRecipient, subject, message);
     throw new Error("Email delivery failed");
   }
