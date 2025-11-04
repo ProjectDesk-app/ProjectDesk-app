@@ -54,12 +54,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!before) return res.status(404).json({ error: 'Not found' });
 
     // Normalize status to match Prisma enum
-    const normalizedStatus = status
-      ? String(status).toUpperCase().replace(/\s+/g, '_')
-      : undefined;
-    const taskStatus = normalizedStatus && normalizedStatus in TaskStatus
-      ? (normalizedStatus as keyof typeof TaskStatus)
-      : undefined;
+    const normalizedStatus =
+      typeof status === 'string'
+        ? status.toUpperCase().replace(/\s+/g, '_')
+        : undefined;
+
+    const knownStatuses = new Set(
+      Object.values(TaskStatus).map(value => value.toString())
+    );
+    ['REVIEW', 'DEFERRED', 'DONE'].forEach(value => knownStatuses.add(value));
+
+    const statusForUpdate =
+      normalizedStatus && knownStatuses.has(normalizedStatus)
+        ? (normalizedStatus as TaskStatus)
+        : undefined;
 
     const assignedUsersUpdate =
       Array.isArray(assignedUserIds)
@@ -75,7 +83,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { id: Number(id) },
       data: {
         flagged: typeof flagged === 'boolean' ? flagged : undefined,
-        status: taskStatus ? TaskStatus[taskStatus] : undefined,
+        status: statusForUpdate,
         dueDate: typeof dueDate === 'string' ? new Date(dueDate) : undefined,
         dependencyTaskId: dependencyTaskId === undefined ? undefined : dependencyTaskId,
         duration: duration ? Number(duration) : undefined,
