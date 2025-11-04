@@ -9,6 +9,7 @@ import { Toaster } from "react-hot-toast";
 import { useState } from "react";
 import { LayoutDashboard } from "lucide-react";
 import { LoadingState } from "@/components/LoadingState";
+import { getProjectLeadLabel } from "@/lib/projectLabels";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -54,12 +55,13 @@ export default function Dashboard() {
       ...(p.collaborators?.map((c: any) => c.name) || []),
     ];
 
-    const supervisorName = p.supervisor?.name ? ` (Supervisor: ${p.supervisor.name})` : "";
+    const leadLabel = getProjectLeadLabel(p.category);
+    const supervisorName = p.supervisor?.name ? ` (${leadLabel}: ${p.supervisor.name})` : "";
 
     const assignedText = assignedPeople.length
       ? `${assignedPeople.join(", ")}${supervisorName}`
       : p.supervisor?.name
-      ? `Supervisor: ${p.supervisor.name}`
+      ? `${leadLabel}: ${p.supervisor.name}`
       : "Unassigned";
 
     const statusLabel = p.isCompleted ? "Completed" : p.status || "Unknown";

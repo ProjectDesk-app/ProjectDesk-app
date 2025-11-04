@@ -5,6 +5,7 @@ import { ProjectLayout } from "@/components/ProjectLayout";
 import { toast, Toaster } from "react-hot-toast";
 import { useMemo, useState } from "react";
 import { LoadingState } from "@/components/LoadingState";
+import { getProjectLeadLabel } from "@/lib/projectLabels";
 
 type PendingTask = {
   id: number;
@@ -264,6 +265,8 @@ export default function ProjectOverview() {
       </Layout>
     );
 
+  const leadLabel = getProjectLeadLabel(project.category);
+
   const statusLabel = project.isCompleted
     ? "Completed"
     : project.status || "Unknown";
@@ -358,7 +361,7 @@ export default function ProjectOverview() {
               <h3 className="font-semibold text-gray-800 mb-2">👥 Team</h3>
               <ul className="text-gray-700 space-y-1">
                 <li>
-                  <strong>Supervisor:</strong> {project.supervisor?.name}{" "}
+                  <strong>{leadLabel}:</strong> {project.supervisor?.name}{" "}
                   <a
                     href={`mailto:${project.supervisor?.email}`}
                     className="text-blue-500"

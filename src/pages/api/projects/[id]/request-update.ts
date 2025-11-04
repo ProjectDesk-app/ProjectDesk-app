@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
+import { getProjectLeadLabel } from "@/lib/projectLabels";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST")
@@ -48,11 +49,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "No recipients to notify" });
     }
 
+    const leadLabel = getProjectLeadLabel(project.category);
     const subject = `Progress update requested – ${project.title}`;
     const message = `
 Hello,
 
-Your supervisor (${project.supervisor?.name}) has requested a progress update 
+Your ${leadLabel} (${project.supervisor?.name}) has requested a progress update 
 for the project "${project.title}". 
 
 Please log in to ProjectDesk to provide an update and flag any issues.
