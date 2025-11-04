@@ -40,11 +40,8 @@ export async function sendEmail(to: string, subject: string, message: string) {
   }
 
   try {
-    const fromHeader =
-      fromRaw && /<[^<>]*@[^<>]+>/.test(fromRaw) ? fromRaw : fromEmail!;
-
     const body = new URLSearchParams({
-      from: fromHeader,
+      from: fromRaw,
       to: normalizedRecipient,
       subject,
       text: message,
@@ -65,8 +62,6 @@ export async function sendEmail(to: string, subject: string, message: string) {
     }
   } catch (error) {
     console.error("[Email] Failed to send message via Mailgun:", error);
-    console.log("from raw:", fromRaw);
-    console.log("from:", fromEmail);
     logMockEmail(normalizedRecipient, subject, message);
     throw new Error("Email delivery failed");
   }
