@@ -21,6 +21,16 @@ type TeamMember = {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+// Only allow project IDs that are positive integers or safe slugs
+function isValidProjectId(id: unknown): id is string {
+  return (
+    typeof id === "string" &&
+    /^[a-zA-Z0-9_-]+$/.test(id) && // adjust regex to your expected format
+    !id.includes("../") && // basic path traversal defense
+    id.length > 0 && id.length <= 64
+  );
+}
+
 export default function ProjectOverview() {
   const router = useRouter();
   const { id: rawId } = router.query;
@@ -167,7 +177,10 @@ export default function ProjectOverview() {
   };
 
   const sendUpdateRequest = async () => {
-    if (!projectId) return;
+    if (!projectId || !isValidProjectId(projectId)) {
+      toast.error("Invalid project ID.");
+      return;
+    }
     if (selectedRecipients.length === 0) {
       toast.error("Select at least one team member.");
       return;
@@ -205,7 +218,10 @@ export default function ProjectOverview() {
   };
 
   const reactivateProject = async () => {
-    if (!projectId) return;
+    if (!projectId || !isValidProjectId(projectId)) {
+      toast.error("Invalid project ID.");
+      return;
+    }
     if (!confirm("Reactivate this project?")) return;
     setIsReactivating(true);
     try {
