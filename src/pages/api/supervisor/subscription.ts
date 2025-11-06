@@ -55,6 +55,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         subscriptionType: true,
         subscriptionStartedAt: true,
         subscriptionExpiresAt: true,
+        goCardlessSubscriptionId: true,
+        goCardlessSubscriptionStatus: true,
         sponsoredUsers: {
           select: { id: true },
         },
