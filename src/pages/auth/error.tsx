@@ -212,7 +212,9 @@ export default function AuthErrorPage({ rawError }: AuthErrorPageProps) {
             Return home
           </Link>
           <a
-            href="mailto:support@projectdesk.app"
+            href="https://projectdesk.app/contact"
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-md border border-transparent px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition"
           >
             Contact support
