@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { Menu, Transition } from "@headlessui/react";
 import { BellIcon, ChevronDownIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import { LayoutDashboard, GraduationCap, Layers, ShieldCheck, CreditCard, AlertTriangle } from "lucide-react";
+import { Toaster } from "react-hot-toast";
 
 import Logo from "@/assets/branding/ProjectDesk-Transparent.png";
 import { ProfileOverviewModal } from "@/components/account/ProfileOverviewModal";
