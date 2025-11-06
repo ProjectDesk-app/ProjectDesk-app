@@ -28,6 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       subscriptionType: true,
       subscriptionStartedAt: true,
       subscriptionExpiresAt: true,
+      goCardlessSubscriptionId: true,
+      goCardlessSubscriptionStatus: true,
       sponsoredUsers: {
         select: { id: true },
       },
@@ -85,5 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     trialDaysRemaining,
     trialExpired,
     isCancelled,
+    goCardlessSubscriptionId: supervisor.goCardlessSubscriptionId,
+    goCardlessSubscriptionStatus: supervisor.goCardlessSubscriptionStatus,
   });
 }

@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import type { UserRole } from "@prisma/client";
 import { SubscriptionType } from "@prisma/client";
+import { cancelSubscription, cancelMandate } from "@/lib/gocardless";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = (await getServerSession(req, res, authOptions as any)) as any;
@@ -67,6 +68,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const id = Number(userId);
 
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        goCardlessSubscriptionId: true,
+        goCardlessMandateId: true,
+      },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
     if (id === session.user.id) {
       return res.status(400).json({ error: "You cannot delete your own account" });
     }
@@ -93,6 +107,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({
         error: "This user sponsors other accounts. Remove their sponsorships before deleting the account.",
       });
+    }
+
+    if (targetUser.goCardlessSubscriptionId) {
+      try {
+        await cancelSubscription(targetUser.goCardlessSubscriptionId);
+      } catch (error: any) {
+        console.error("GoCardless cancel before delete failed", error);
+      }
+    }
+
+    if (targetUser.goCardlessMandateId) {
+      try {
+        await cancelMandate(targetUser.goCardlessMandateId);
+      } catch (error: any) {
+        console.error("GoCardless cancel mandate before delete failed", error);
+      }
     }
 
     await prisma.$transaction(async (tx) => {

@@ -21,6 +21,10 @@ model User {
   subscriptionType      SubscriptionType @default(FREE_TRIAL)
   subscriptionStartedAt DateTime        @default(now())
   subscriptionExpiresAt DateTime?
+  goCardlessCustomerId  String?
+  goCardlessMandateId   String?
+  goCardlessSubscriptionId String?
+  goCardlessSubscriptionStatus String?
   sponsor               User?           @relation("UserSponsor", fields: [sponsorId], references: [id])
   sponsoredUsers        User[]          @relation("UserSponsor")
   Comment               Comment[]
@@ -36,6 +40,7 @@ model User {
   multiAssignedTasks    Task[]          @relation("TaskAssignments")
   emailVerifications    EmailVerification[]
   passwordResets        PasswordResetToken[]
+  goCardlessRedirectFlows GoCardlessRedirectFlow[]
 }
 
 model Project {
@@ -159,6 +164,19 @@ model TaskSet {
   name         String
   supervisor   User           @relation(fields: [supervisorId], references: [id])
   templates    TaskTemplate[] @relation("TaskSetTemplates")
+}
+
+model GoCardlessRedirectFlow {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  flowId       String   @unique
+  sessionToken String   @unique
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model TaskTemplate {

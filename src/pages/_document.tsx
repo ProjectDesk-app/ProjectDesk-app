@@ -10,6 +10,7 @@ export default function Document() {
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-title" content="ProjectDesk" />
         <link rel="manifest" href="/site.webmanifest" />
+        <script src="https://pay.gocardless.com/billing/static/dropin/v2/initialise.js" async />
       </Head>
       <body>
         <Main />

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import Layout from "@/components/Layout";
 import { CreditCard, Users, UserMinus } from "lucide-react";
@@ -21,6 +21,8 @@ type SubscriptionResponse = {
   trialDaysRemaining: number | null;
   trialExpired: boolean;
   isCancelled: boolean;
+  goCardlessSubscriptionId: string | null;
+  goCardlessSubscriptionStatus: string | null;
 };
 
 type SponsoredUser = {
@@ -79,6 +81,9 @@ export default function SupervisorDashboard() {
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [decliningId, setDecliningId] = useState<number | null>(null);
+  const [startingSubscription, setStartingSubscription] = useState(false);
+  const [cancellingSubscription, setCancellingSubscription] = useState(false);
+  const [showManageSubscription, setShowManageSubscription] = useState(false);
 
   const sponsoredUsers = sponsoredData?.sponsored ?? [];
   const pendingRequests = sponsoredData?.requests ?? [];
@@ -102,6 +107,18 @@ export default function SupervisorDashboard() {
     }
     return base;
   }, [subscriptionData]);
+
+  const hasActiveSubscription =
+    !!subscriptionData &&
+    subscriptionData.subscriptionType === SubscriptionType.SUBSCRIBED &&
+    !!subscriptionData.goCardlessSubscriptionId &&
+    !subscriptionData.isCancelled;
+
+  useEffect(() => {
+    if (!hasActiveSubscription) {
+      setShowManageSubscription(false);
+    }
+  }, [hasActiveSubscription]);
 
   const sponsorUser = async (userId: number, displayName: string | null, displayEmail: string) => {
     const res = await fetch("/api/supervisor/sponsored", {
@@ -181,6 +198,49 @@ export default function SupervisorDashboard() {
     }
   };
 
+  const startSubscription = async () => {
+    setStartingSubscription(true);
+    try {
+      const res = await fetch("/api/supervisor/subscription/manage", {
+        method: "POST",
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.error || "Unable to start subscription");
+      }
+      const redirectUrl = payload?.redirectUrl;
+      if (!redirectUrl) {
+        throw new Error("No redirect URL returned");
+      }
+      window.location.href = redirectUrl;
+    } catch (err: any) {
+      toast.error(err?.message || "Unable to start subscription");
+    } finally {
+      setStartingSubscription(false);
+    }
+  };
+
+  const cancelSubscription = async () => {
+    setCancellingSubscription(true);
+    try {
+      const res = await fetch("/api/supervisor/subscription/manage", {
+        method: "DELETE",
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.error || "Unable to cancel subscription");
+      }
+      toast.success("Subscription cancelled");
+      mutateSubscription();
+      mutateSponsored();
+    } catch (err: any) {
+      toast.error(err?.message || "Unable to cancel subscription");
+    } finally {
+      setCancellingSubscription(false);
+      setShowManageSubscription(false);
+    }
+  };
+
   return (
     <Layout title="Supervisor Dashboard">
       <div className="space-y-6">
@@ -201,41 +261,103 @@ export default function SupervisorDashboard() {
               <h2 className="text-lg font-semibold text-gray-900">Subscription overview</h2>
             </div>
             {subscriptionData ? (
-              <dl className="space-y-2 text-sm text-gray-700">
-                <div className="flex items-center justify-between">
-                  <dt className="font-medium text-gray-900">Plan</dt>
-                  <dd>{subscriptionSummary}</dd>
+              <>
+                <dl className="space-y-2 text-sm text-gray-700">
+                  <div className="flex items-center justify-between">
+                    <dt className="font-medium text-gray-900">Plan</dt>
+                    <dd>{subscriptionSummary}</dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="font-medium text-gray-900">Since</dt>
+                    <dd>{formatDate(subscriptionData.subscriptionStartedAt)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="font-medium text-gray-900">Access until</dt>
+                    <dd>{formatDate(subscriptionData.subscriptionExpiresAt)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="font-medium text-gray-900">Sponsored accounts</dt>
+                    <dd>
+                      {subscriptionData.sponsoredCount} / {subscriptionData.sponsorLimit}
+                    </dd>
+                  </div>
+                  {subscriptionData.goCardlessSubscriptionStatus && (
+                    <div className="flex items-center justify-between">
+                      <dt className="font-medium text-gray-900">Latest billing status</dt>
+                      <dd className="text-xs uppercase tracking-wide text-gray-600">
+                        {subscriptionData.goCardlessSubscriptionStatus}
+                      </dd>
+                    </div>
+                  )}
+                  {!subscriptionData.canSponsor && (
+                    <p className="mt-3 rounded-md bg-yellow-100 px-3 py-2 text-xs font-medium text-yellow-800">
+                      Upgrade to a paid subscription to sponsor collaborators and students.
+                    </p>
+                  )}
+                  {subscriptionData.trialExpired && (
+                    <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-xs font-medium text-red-700">
+                      Your trial has ended. Start a subscription to continue using ProjectDesk.
+                    </p>
+                  )}
+                  {subscriptionData.isCancelled && (
+                    <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-xs font-medium text-red-700">
+                      Your subscription is cancelled. Renew to restore sponsorship access and sign in for collaborators.
+                    </p>
+                  )}
+                </dl>
+
+                <div className="mt-4 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (hasActiveSubscription) {
+                        setShowManageSubscription((value) => !value);
+                      } else {
+                        startSubscription();
+                      }
+                    }}
+                    disabled={startingSubscription || cancellingSubscription}
+                    className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {hasActiveSubscription
+                      ? showManageSubscription
+                        ? "Hide subscription actions"
+                        : "Manage subscription"
+                      : startingSubscription
+                      ? "Starting..."
+                      : "Start subscription"}
+                  </button>
+                  {showManageSubscription && hasActiveSubscription && (
+                    <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                      <div className="space-y-1">
+                        <p className="font-semibold text-gray-900">Subscription details</p>
+                        <p className="text-xs text-gray-600">
+                          Subscription ID:{" "}
+                          <span className="select-all font-mono text-xs">
+                            {subscriptionData.goCardlessSubscriptionId}
+                          </span>
+                        </p>
+                        {subscriptionData.goCardlessSubscriptionStatus && (
+                          <p className="text-xs text-gray-600">
+                            Status: {subscriptionData.goCardlessSubscriptionStatus}
+                          </p>
+                        )}
+                      </div>
+                      <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
+                        Cancelling ends your paid plan and pauses sponsored access after the current billing period.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => cancelSubscription()}
+                        disabled={cancellingSubscription}
+                        className="w-full rounded-md border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        {cancellingSubscription ? "Cancelling..." : "Cancel subscription"}
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <dt className="font-medium text-gray-900">Since</dt>
-                  <dd>{formatDate(subscriptionData.subscriptionStartedAt)}</dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="font-medium text-gray-900">Access until</dt>
-                  <dd>{formatDate(subscriptionData.subscriptionExpiresAt)}</dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="font-medium text-gray-900">Sponsored accounts</dt>
-                  <dd>
-                    {subscriptionData.sponsoredCount} / {subscriptionData.sponsorLimit}
-                  </dd>
-                </div>
-                {!subscriptionData.canSponsor && (
-                  <p className="mt-3 rounded-md bg-yellow-100 px-3 py-2 text-xs font-medium text-yellow-800">
-                    Upgrade to a paid subscription to sponsor collaborators and students.
-                  </p>
-                )}
-                {subscriptionData.trialExpired && (
-                  <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-xs font-medium text-red-700">
-                    Your trial has ended. Start a subscription to continue using ProjectDesk.
-                  </p>
-                )}
-                {subscriptionData.isCancelled && (
-                  <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-xs font-medium text-red-700">
-                    Your subscription is cancelled. Renew to restore sponsorship access and sign in for collaborators.
-                  </p>
-                )}
-              </dl>
+              </>
             ) : (
               <p className="text-sm text-gray-500">Loading subscription details…</p>
             )}
