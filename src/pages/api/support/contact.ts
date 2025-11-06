@@ -99,7 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const reference = createReference();
-  const subject = `Contact request: ${contactType}`;
+  const subject = `Contact request: ${contactType} # Ref: ${reference}`;
   const message = [
     `Reference: ${reference}`,
     `Name: ${trimmedName}`,
