@@ -77,6 +77,7 @@ export const authOptions = {
           subscriptionStartedAt: user.subscriptionStartedAt,
           subscriptionExpiresAt: user.subscriptionExpiresAt,
           sponsorId: user.sponsorId,
+          sponsorSubscriptionInactive: user.sponsorSubscriptionInactive,
         } as any;
       },
     }),
@@ -104,6 +105,10 @@ export const authOptions = {
         session.user.subscriptionExpiresAt = token.subscriptionExpiresAt || null;
         session.user.sponsorId =
           typeof token.sponsorId === "number" ? token.sponsorId : token.sponsorId ?? null;
+        session.user.sponsorSubscriptionInactive =
+          typeof token.sponsorSubscriptionInactive === "boolean"
+            ? token.sponsorSubscriptionInactive
+            : Boolean(token.sponsorSubscriptionInactive);
       }
       return session;
     },
@@ -126,6 +131,7 @@ export const authOptions = {
             : user.sponsorId != null
             ? Number(user.sponsorId)
             : null;
+        token.sponsorSubscriptionInactive = user.sponsorSubscriptionInactive ?? false;
       }
       return token;
     },

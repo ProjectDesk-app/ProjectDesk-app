@@ -122,6 +122,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           subscriptionExpiresAt: null,
         },
       }),
+      prisma.user.updateMany({
+        where: { sponsorId: supervisor.id },
+        data: { sponsorSubscriptionInactive: false },
+      }),
     ]);
 
     return res.status(200).json({

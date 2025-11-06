@@ -155,6 +155,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         data: {
           sponsorId: null,
           subscriptionType: SubscriptionType.FREE_TRIAL,
+          sponsorSubscriptionInactive: false,
         },
       });
 

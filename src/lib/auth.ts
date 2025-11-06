@@ -59,6 +59,7 @@ export const authOptions = {
                 subscriptionStartedAt: user.subscriptionStartedAt,
                 subscriptionExpiresAt: user.subscriptionExpiresAt,
                 sponsorId: user.sponsorId,
+                sponsorSubscriptionInactive: user.sponsorSubscriptionInactive,
               } as any;
             },
           }),
@@ -83,6 +84,10 @@ export const authOptions = {
             : (user as any).sponsorId != null
             ? Number((user as any).sponsorId)
             : token.sponsorId ?? null;
+        token.sponsorSubscriptionInactive =
+          typeof (user as any).sponsorSubscriptionInactive === 'boolean'
+            ? (user as any).sponsorSubscriptionInactive
+            : token.sponsorSubscriptionInactive ?? false;
       } else if (!token.subscriptionType && token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: Number(token.id) },
@@ -91,6 +96,7 @@ export const authOptions = {
             subscriptionStartedAt: true,
             subscriptionExpiresAt: true,
             sponsorId: true,
+            sponsorSubscriptionInactive: true,
           },
         });
         if (dbUser) {
@@ -102,6 +108,7 @@ export const authOptions = {
             ? dbUser.subscriptionExpiresAt.toISOString()
             : null;
           token.sponsorId = dbUser.sponsorId ?? null;
+          token.sponsorSubscriptionInactive = dbUser.sponsorSubscriptionInactive ?? false;
         }
       }
       return token;
@@ -114,6 +121,10 @@ export const authOptions = {
         (session.user as any).subscriptionStartedAt = token.subscriptionStartedAt ?? null;
         (session.user as any).subscriptionExpiresAt = token.subscriptionExpiresAt ?? null;
         (session.user as any).sponsorId = token.sponsorId ?? null;
+        (session.user as any).sponsorSubscriptionInactive =
+          typeof token.sponsorSubscriptionInactive === 'boolean'
+            ? token.sponsorSubscriptionInactive
+            : Boolean(token.sponsorSubscriptionInactive);
       }
       return session;
     },

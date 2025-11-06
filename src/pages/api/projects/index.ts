@@ -37,6 +37,7 @@ async function resolveMembers(
           email,
           name: input.name?.trim() || null,
           role,
+          sponsorSubscriptionInactive: false,
         },
       });
       isNew = true;
@@ -44,7 +45,7 @@ async function resolveMembers(
       // Allow promoting collaborators if needed
       user = await prisma.user.update({
         where: { id: user.id },
-        data: { role: "COLLABORATOR" },
+        data: { role: "COLLABORATOR", sponsorSubscriptionInactive: false },
       });
     }
 
@@ -166,6 +167,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             supervisorId: session.user.id,
             subscriptionType: SubscriptionType.SPONSORED,
             subscriptionExpiresAt: null,
+            sponsorSubscriptionInactive: false,
           },
         });
       }

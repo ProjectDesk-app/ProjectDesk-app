@@ -117,14 +117,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(502).json({ error: error?.message || "Unable to cancel subscription" });
     }
 
-    await prisma.user.update({
-      where: { id: supervisor.id },
-      data: {
-        subscriptionType: SubscriptionType.CANCELLED,
-        subscriptionExpiresAt: new Date(),
-        goCardlessSubscriptionStatus: "cancelled",
-      },
-    });
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: supervisor.id },
+        data: {
+          subscriptionType: SubscriptionType.CANCELLED,
+          subscriptionExpiresAt: new Date(),
+          goCardlessSubscriptionStatus: "cancelled",
+        },
+      }),
+      prisma.user.updateMany({
+        where: { sponsorId: supervisor.id },
+        data: { sponsorSubscriptionInactive: true },
+      }),
+    ]);
 
     return res.status(200).json({ ok: true });
   }

@@ -23,6 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         subscriptionType: true,
         subscriptionStartedAt: true,
         subscriptionExpiresAt: true,
+        sponsorSubscriptionInactive: true,
         sponsor: {
           select: {
             id: true,

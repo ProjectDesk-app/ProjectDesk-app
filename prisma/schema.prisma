@@ -25,6 +25,7 @@ model User {
   goCardlessMandateId   String?
   goCardlessSubscriptionId String?
   goCardlessSubscriptionStatus String?
+  sponsorSubscriptionInactive Boolean   @default(false)
   sponsor               User?           @relation("UserSponsor", fields: [sponsorId], references: [id])
   sponsoredUsers        User[]          @relation("UserSponsor")
   Comment               Comment[]

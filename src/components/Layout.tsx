@@ -33,6 +33,7 @@ export default function Layout({
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeModal, setActiveModal] = useState<AccountModalType | null>(null);
+  const [showSponsorDetails, setShowSponsorDetails] = useState(false);
   const userRole = (session?.user as any)?.role;
   const isAuthenticated = Boolean(session);
 
@@ -130,6 +131,22 @@ export default function Layout({
       callbackUrl: origin ? `${origin}/` : "/",
     });
   };
+
+  const sponsorSubscriptionInactive =
+    accountProfile?.role &&
+    (accountProfile.role === "STUDENT" || accountProfile.role === "COLLABORATOR") &&
+    accountProfile.sponsorSubscriptionInactive;
+
+  const sponsorContactLabel =
+    accountProfile?.sponsor?.name && accountProfile?.sponsor?.email
+      ? `${accountProfile.sponsor.name} (${accountProfile.sponsor.email})`
+      : accountProfile?.sponsor?.email || accountProfile?.sponsor?.name || "your supervisor";
+
+  useEffect(() => {
+    if (!sponsorSubscriptionInactive) {
+      setShowSponsorDetails(false);
+    }
+  }, [sponsorSubscriptionInactive]);
 
   return (
     <div>
@@ -284,6 +301,73 @@ export default function Layout({
       )}
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
 
+      <Toaster position="bottom-right" />
+
+      {sponsorSubscriptionInactive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 text-left shadow-xl">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-gray-900">Sponsor subscription inactive</h2>
+              <p className="text-sm text-gray-700">
+                Your ProjectDesk access is paused because {sponsorContactLabel}&rsquo;s subscription is inactive.
+                Please resolve the sponsorship before continuing.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setShowSponsorDetails((value) => !value)}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+              >
+                {showSponsorDetails ? "Hide details" : "Show more detail"}
+              </button>
+              {showSponsorDetails && (
+                <div className="space-y-3 rounded-md bg-gray-50 p-4 text-sm text-gray-700">
+                  <p className="font-semibold text-gray-900">How to regain access</p>
+                  <ol className="list-decimal space-y-2 pl-5">
+                    <li>
+                      <span className="font-semibold text-gray-900">Speak with your current sponsor.</span>{" "}
+                      Ask them to restart their ProjectDesk subscription so your sponsorship can resume.
+                    </li>
+                    <li>
+                      <span className="font-semibold text-gray-900">Seek a new sponsor if needed.</span>{" "}
+                      A supervisor with an active subscription can add you from their Supervisor Dashboard using your email.
+                    </li>
+                  </ol>
+                  <p className="text-xs text-gray-500">
+                    Once a sponsor&rsquo;s subscription becomes active, your access unlocks automatically.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2 rounded-md bg-red-50 p-4 text-sm text-red-700">
+              <p className="font-semibold">Access is temporarily locked</p>
+              <p>
+                You can review this message and sign out, but ProjectDesk features stay disabled until a sponsor with an
+                active subscription adds you again.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Sign out
+              </button>
+              <a
+                href="https://projectdesk.app/contact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50"
+              >
+                Contact support
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {session && (
         <>
           <ProfileOverviewModal
@@ -326,12 +410,3 @@ export default function Layout({
     </div>
   );
 }
-  const handleSignOut = () => {
-    const origin =
-      typeof window !== "undefined" && window.location.origin
-        ? window.location.origin
-        : "";
-    signOut({
-      callbackUrl: origin ? `${origin}/` : "/",
-    });
-  };

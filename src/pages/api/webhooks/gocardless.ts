@@ -83,6 +83,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 goCardlessSubscriptionStatus: action,
               },
             });
+            await tx.user.updateMany({
+              where: { sponsorId: user.id },
+              data: { sponsorSubscriptionInactive: true },
+            });
           } else if (SUBSCRIPTION_ACTIVE_ACTIONS.has(action)) {
             await tx.user.update({
               where: { id: user.id },
@@ -92,6 +96,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 subscriptionExpiresAt: null,
                 goCardlessSubscriptionStatus: action,
               },
+            });
+            await tx.user.updateMany({
+              where: { sponsorId: user.id },
+              data: { sponsorSubscriptionInactive: false },
             });
           } else {
             await tx.user.update({
@@ -116,6 +124,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               goCardlessSubscriptionStatus: action,
               subscriptionType: SubscriptionType.CANCELLED,
               subscriptionExpiresAt: new Date(),
+              sponsorSubscriptionInactive: true,
             },
           });
         }
