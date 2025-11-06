@@ -111,8 +111,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     await sendEmail("support@projectdesk.app", subject, message);
+    const confirmationSubject = `We received your request (${reference})`;
+    const confirmationBody = [
+      `Hello ${trimmedName},`,
+      "",
+      "Thanks for contacting ProjectDesk support. We've received your request and will get back to you soon.",
+      "",
+      `Reference: ${reference}`,
+      `Topic: ${contactType}`,
+      "",
+      "Please do not reply to this email - this address is used for notifications only and is not monitored.",
+      "",
+      "Thanks,",
+      "The ProjectDesk Team",
+    ].join("\n");
+
+    await sendEmail(trimmedEmail, confirmationSubject, confirmationBody);
   } catch (error) {
-    console.error("Failed to send contact email", error);
+    console.error("Failed to send contact emails", error);
     return res.status(500).json({ error: "Unable to send message" });
   }
 
