@@ -28,15 +28,26 @@ const MAX_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_DESCRIPTION_LENGTH = 2000;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const allowedOrigins = [
-    process.env.MARKETING_SITE_URL,
-    process.env.NEXTAUTH_URL,
-    process.env.NEXT_PUBLIC_APP_URL,
-  ].filter(Boolean);
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://projectdesk.app",
+  "https://www.projectdesk.app",
+];
 
+const ALLOWED_ORIGINS = Array.from(
+  new Set(
+    [
+      process.env.MARKETING_SITE_URL,
+      process.env.NEXT_PUBLIC_MARKETING_URL,
+      process.env.NEXT_PUBLIC_APP_URL,
+      process.env.NEXTAUTH_URL,
+      ...DEFAULT_ALLOWED_ORIGINS,
+    ].filter((value): value is string => typeof value === "string" && value.length > 0)
+  )
+);
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const requestOrigin = req.headers.origin;
-  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
     res.setHeader("Access-Control-Allow-Origin", requestOrigin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");

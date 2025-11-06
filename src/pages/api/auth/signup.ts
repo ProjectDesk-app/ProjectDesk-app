@@ -8,11 +8,18 @@ import { SubscriptionType, UserRole } from "@prisma/client";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const allowedOrigins = [
-    process.env.MARKETING_SITE_URL,
-    process.env.NEXTAUTH_URL,
-    process.env.NEXT_PUBLIC_APP_URL,
-  ].filter(Boolean);
+  const allowedOrigins = Array.from(
+    new Set(
+      [
+        process.env.MARKETING_SITE_URL,
+        process.env.NEXT_PUBLIC_MARKETING_URL,
+        process.env.NEXT_PUBLIC_APP_URL,
+        process.env.NEXTAUTH_URL,
+        "https://projectdesk.app",
+        "https://www.projectdesk.app",
+      ].filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
 
   const requestOrigin = req.headers.origin;
   if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
