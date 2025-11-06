@@ -86,6 +86,10 @@ export const authOptions = {
     strategy: "jwt" as const,
   },
 
+  pages: {
+    error: "/auth/error",
+  },
+
   callbacks: {
     async session({ session, token }: any) {
       if (session.user) {
