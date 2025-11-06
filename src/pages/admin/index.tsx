@@ -33,6 +33,7 @@ export default function AdminDashboard() {
   const [inviteRole, setInviteRole] = useState("STUDENT");
   const [loadingRole, setLoadingRole] = useState<number | null>(null);
   const [loadingInvite, setLoadingInvite] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!users || !selectedUser) return;
@@ -194,6 +195,38 @@ export default function AdminDashboard() {
                       className="rounded-md border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50"
                     >
                       Send password reset
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!selectedUser) return;
+                        const confirmed = window.confirm(
+                          "Delete this user? Their comments, notifications, and memberships will be removed. This cannot be undone."
+                        );
+                        if (!confirmed) return;
+                        setDeletingUserId(selectedUser.id);
+                        try {
+                          const res = await fetch("/api/admin/users", {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ userId: selectedUser.id }),
+                          });
+                          const payload = await res.json();
+                          if (!res.ok) {
+                            throw new Error(payload?.error || "Failed to delete user");
+                          }
+                          toast.success("User deleted");
+                          setSelectedUser(null);
+                          mutate();
+                        } catch (err: any) {
+                          toast.error(err?.message || "Unable to delete user");
+                        } finally {
+                          setDeletingUserId(null);
+                        }
+                      }}
+                      disabled={deletingUserId === selectedUser.id}
+                      className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {deletingUserId === selectedUser.id ? "Deleting..." : "Delete user"}
                     </button>
                   </div>
                 </div>
