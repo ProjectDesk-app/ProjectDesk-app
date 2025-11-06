@@ -40,13 +40,6 @@ export const authOptions = {
               if (user.subscriptionType === SubscriptionType.SPONSORED && !user.sponsorId) {
                 throw new Error('Awaiting sponsorship approval');
               }
-              if (
-                user.subscriptionType === SubscriptionType.FREE_TRIAL &&
-                user.subscriptionExpiresAt &&
-                user.subscriptionExpiresAt.getTime() < Date.now()
-              ) {
-                throw new Error('Your free trial has ended');
-              }
               return {
                 id: String(user.id),
                 name: user.name ?? user.email,
