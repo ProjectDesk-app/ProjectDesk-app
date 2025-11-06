@@ -8,7 +8,7 @@ import useSWR from "swr";
 import { Menu, Transition } from "@headlessui/react";
 import { BellIcon, ChevronDownIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import { LayoutDashboard, GraduationCap, Layers, ShieldCheck, CreditCard, AlertTriangle } from "lucide-react";
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
 
 import Logo from "@/assets/branding/ProjectDesk-Transparent.png";
 import { ProfileOverviewModal } from "@/components/account/ProfileOverviewModal";
@@ -35,6 +35,7 @@ export default function Layout({
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeModal, setActiveModal] = useState<AccountModalType | null>(null);
   const [showSponsorDetails, setShowSponsorDetails] = useState(false);
+  const [managingSubscription, setManagingSubscription] = useState(false);
   const userRole = (session?.user as any)?.role;
   const isAuthenticated = Boolean(session);
 
@@ -138,6 +139,12 @@ export default function Layout({
     (accountProfile.role === "STUDENT" || accountProfile.role === "COLLABORATOR") &&
     accountProfile.sponsorSubscriptionInactive;
 
+  const supervisorSubscriptionCancelled = Boolean(
+    (accountProfile?.role === "SUPERVISOR" && accountProfile?.subscriptionType === "CANCELLED") ||
+      ((session?.user as any)?.role === "SUPERVISOR" &&
+        (session?.user as any)?.subscriptionType === "CANCELLED")
+  );
+
   const sponsorContactLabel =
     accountProfile?.sponsor?.name && accountProfile?.sponsor?.email
       ? `${accountProfile.sponsor.name} (${accountProfile.sponsor.email})`
@@ -148,6 +155,29 @@ export default function Layout({
       setShowSponsorDetails(false);
     }
   }, [sponsorSubscriptionInactive]);
+
+  const handleManageSubscription = async () => {
+    if (managingSubscription) return;
+    setManagingSubscription(true);
+    try {
+      const res = await fetch("/api/supervisor/subscription/manage", {
+        method: "POST",
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.error || "Unable to start subscription");
+      }
+      const redirectUrl = payload?.redirectUrl;
+      if (!redirectUrl) {
+        throw new Error("No redirect URL returned");
+      }
+      window.location.href = redirectUrl;
+    } catch (error: any) {
+      toast.error(error?.message || "Unable to manage subscription");
+    } finally {
+      setManagingSubscription(false);
+    }
+  };
 
   return (
     <div>
@@ -303,6 +333,52 @@ export default function Layout({
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
 
       <Toaster position="bottom-right" />
+
+      {supervisorSubscriptionCancelled && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 text-left shadow-xl">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-gray-900">Subscription inactive</h2>
+              <p className="text-sm text-gray-700">
+                Your ProjectDesk subscription is cancelled, so sponsoring collaborators and project tools are paused.
+                Use the button below to manage your subscription with GoCardless.
+              </p>
+            </div>
+            <div className="space-y-2 rounded-md bg-blue-50 p-4 text-sm text-blue-900">
+              <p className="font-semibold">How to fix this</p>
+              <p>Restart the plan, update payment details, or approve the latest mandate from the GoCardless portal.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleManageSubscription}
+                disabled={managingSubscription}
+                className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {managingSubscription ? "Opening GoCardless..." : "Manage subscription"}
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Sign out
+              </button>
+              <a
+                href="https://projectdesk.app/contact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50"
+              >
+                Contact support
+              </a>
+            </div>
+            <p className="text-xs text-gray-500">
+              Once billing is active again, refresh this page to regain full access. Sponsored users unlock automatically.
+            </p>
+          </div>
+        </div>
+      )}
 
       {sponsorSubscriptionInactive && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">

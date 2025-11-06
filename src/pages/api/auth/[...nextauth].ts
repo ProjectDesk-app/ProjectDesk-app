@@ -56,10 +56,6 @@ export const authOptions = {
           throw new Error("Awaiting sponsorship approval");
         }
 
-        if (user.subscriptionType === SubscriptionType.CANCELLED) {
-          throw new Error("Subscription cancelled");
-        }
-
         if (
           user.subscriptionType === SubscriptionType.FREE_TRIAL &&
           user.subscriptionExpiresAt &&

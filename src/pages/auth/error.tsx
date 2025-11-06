@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { AlertTriangle, ArrowLeft, Home } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Home, RefreshCcw } from "lucide-react";
 
 import Layout from "@/components/Layout";
 
@@ -112,7 +112,7 @@ const EXACT_TEXT_MATCHES: Record<string, ErrorInfo> = {
   "subscription cancelled": {
     title: "Subscription inactive",
     description: "Your subscription is currently inactive.",
-    help: "Restart your subscription or contact support if this doesn’t look right.",
+    help: "Restart your subscription or contact support if this doesn't look right.",
   },
   "your free trial has ended": {
     title: "Free trial complete",
