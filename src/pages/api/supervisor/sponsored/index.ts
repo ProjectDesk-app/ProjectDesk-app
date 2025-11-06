@@ -150,7 +150,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "ProjectDesk sponsorship approved",
         `Hello ${updated.name || "there"},\n\n${
           sessionUser.role === "ADMIN" ? "An administrator" : "Your supervisor"
-        } has approved your sponsorship on ProjectDesk. You can now sign in and access your projects.\n\nThanks,\nProjectDesk`
+        } has approved your sponsorship on ProjectDesk (https://portal.projectdesk.app). You can now sign in and access your projects.\n\nThanks,\nProjectDesk`
       );
     }
 
