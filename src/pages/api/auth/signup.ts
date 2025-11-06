@@ -63,19 +63,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!["SUPERVISOR", "STUDENT", "COLLABORATOR"].includes(desiredRole)) {
     return res.status(400).json({ error: "Invalid account type" });
   }
-  if (
-    (desiredRole === "STUDENT" || desiredRole === "COLLABORATOR") &&
-    !normalizedSponsorEmail
-  ) {
-    return res
-      .status(400)
-      .json({ error: "Please provide the email address of your supervisor" });
-  }
-
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  if (existing) {
-    return res.status(409).json({ error: "An account with this email already exists" });
-  }
+  const existing = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: {
+      id: true,
+      role: true,
+      passwordHash: true,
+      sponsorId: true,
+      supervisorId: true,
+      subscriptionType: true,
+      subscriptionExpiresAt: true,
+    },
+  });
 
   const passwordHash = await hash(password, 10);
 
@@ -90,60 +89,110 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let confirmationMessage =
     "Account created. Please check your email to activate it.";
 
-  if (desiredRole === "SUPERVISOR") {
-    role = UserRole.SUPERVISOR;
-    subscriptionType = SubscriptionType.FREE_TRIAL;
-    const trialEnds = new Date();
-    trialEnds.setDate(trialEnds.getDate() + 8);
-    subscriptionExpiresAt = trialEnds;
-    confirmationMessage =
-      "Welcome to ProjectDesk! Confirm your email and start your free 8-day trial.";
-  } else {
-    role = desiredRole === "STUDENT" ? UserRole.STUDENT : UserRole.COLLABORATOR;
-    const sponsorAccount = await prisma.user.findUnique({
-      where: { email: normalizedSponsorEmail },
-      select: { id: true, role: true, subscriptionType: true },
-    });
-
-    if (!sponsorAccount || (sponsorAccount.role !== UserRole.SUPERVISOR && sponsorAccount.role !== UserRole.ADMIN)) {
+  if (existing) {
+    if (existing.passwordHash) {
       return res
-        .status(404)
-        .json({ error: "We couldn't find a supervisor with that email address" });
+        .status(409)
+        .json({ error: "An account with this email already exists" });
     }
 
-    supervisorId = sponsorAccount.id;
-    subscriptionType = SubscriptionType.SPONSORED;
-    subscriptionExpiresAt = null;
-    sponsorId = null;
-    confirmationMessage =
-      "Account created. Please verify your email while we notify your supervisor for sponsorship approval.";
+    role = existing.role;
+    sponsorId = existing.sponsorId;
+    supervisorId = existing.supervisorId;
+    subscriptionType = existing.subscriptionType;
+    subscriptionExpiresAt = existing.subscriptionExpiresAt;
 
-    await sendEmail(
-      normalizedSponsorEmail,
-      "New sponsorship request on ProjectDesk",
-      `Hello,\n\n${trimmedName} (${normalizedEmail}) has requested access to ProjectDesk as your sponsored ${
-        role === UserRole.STUDENT ? "student" : "collaborator"
-      }.\n\nVisit the Supervisor Dashboard to approve or decline this request.\n\nThanks,\nProjectDesk`
-    );
+    if (role === UserRole.STUDENT || role === UserRole.COLLABORATOR) {
+      confirmationMessage =
+        "Account ready! Please verify your email to finish setting things up.";
+    } else if (role === UserRole.SUPERVISOR) {
+      confirmationMessage =
+        "Account updated. Please verify your email to finish activation.";
+    }
+
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        name: trimmedName,
+        passwordHash,
+      },
+    });
+  } else {
+    if (
+      (desiredRole === "STUDENT" || desiredRole === "COLLABORATOR") &&
+      !normalizedSponsorEmail
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Please provide the email address of your supervisor" });
+    }
+
+    if (desiredRole === "SUPERVISOR") {
+      role = UserRole.SUPERVISOR;
+      subscriptionType = SubscriptionType.FREE_TRIAL;
+      const trialEnds = new Date();
+      trialEnds.setDate(trialEnds.getDate() + 8);
+      subscriptionExpiresAt = trialEnds;
+      confirmationMessage =
+        "Welcome to ProjectDesk! Confirm your email and start your free 8-day trial.";
+    } else {
+      role = desiredRole === "STUDENT" ? UserRole.STUDENT : UserRole.COLLABORATOR;
+      const sponsorAccount = await prisma.user.findUnique({
+        where: { email: normalizedSponsorEmail },
+        select: { id: true, role: true, subscriptionType: true },
+      });
+
+      if (!sponsorAccount || (sponsorAccount.role !== UserRole.SUPERVISOR && sponsorAccount.role !== UserRole.ADMIN)) {
+        return res
+          .status(404)
+          .json({ error: "We couldn't find a supervisor with that email address" });
+      }
+
+      supervisorId = sponsorAccount.id;
+      subscriptionType = SubscriptionType.SPONSORED;
+      subscriptionExpiresAt = null;
+      sponsorId = null;
+      confirmationMessage =
+        "Account created. Please verify your email while we notify your supervisor for sponsorship approval.";
+
+      await sendEmail(
+        normalizedSponsorEmail,
+        "New sponsorship request on ProjectDesk",
+        `Hello,\n\n${trimmedName} (${normalizedEmail}) has requested access to ProjectDesk as your sponsored ${
+          role === UserRole.STUDENT ? "student" : "collaborator"
+        }.\n\nVisit the Supervisor Dashboard to approve or decline this request.\n\nThanks,\nProjectDesk`
+      );
+    }
+
+    await prisma.user.create({
+      data: {
+        name: trimmedName,
+        email: normalizedEmail,
+        passwordHash,
+        role,
+        emailVerified: null,
+        supervisorId,
+        sponsorId,
+        subscriptionType,
+        subscriptionExpiresAt,
+      },
+    });
   }
 
-  const user = await prisma.user.create({
-    data: {
-      name: trimmedName,
-      email: normalizedEmail,
-      passwordHash,
-      role,
-      emailVerified: null,
-      supervisorId,
-      sponsorId,
-      subscriptionType,
-      subscriptionExpiresAt,
-    },
+  const targetUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true, name: true },
   });
+
+  if (!targetUser) {
+    return res.status(500).json({ error: "Unable to create account" });
+  }
+
+  await prisma.emailVerification.deleteMany({ where: { userId: targetUser.id } });
 
   await prisma.emailVerification.create({
     data: {
-      userId: user.id,
+      userId: targetUser.id,
       token,
       expiresAt,
     },
@@ -152,10 +201,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
   const verifyLink = `${baseUrl}/verify-email?token=${token}`;
 
+  const greetingName = targetUser.name || trimmedName;
+
   await sendEmail(
     normalizedEmail,
     "Activate your ProjectDesk account",
-    `Hello ${trimmedName},\n\nWelcome to ProjectDesk! Please activate your account by visiting the link below:\n${verifyLink}\n\nIf you did not sign up, you can safely ignore this message.`
+    `Hello ${greetingName},\n\nWelcome to ProjectDesk! Please activate your account by visiting the link below:\n${verifyLink}\n\nIf you did not sign up, you can safely ignore this message.`
   );
 
   return res.status(201).json({ message: confirmationMessage });
