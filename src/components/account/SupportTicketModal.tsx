@@ -98,16 +98,7 @@ export function SupportTicketModal({ open, onClose, profile, sessionUser }: Prop
       }
     >
       <p className="text-sm text-gray-700">
-        Check live service availability at{" "}
-        <a
-          className="text-blue-600 hover:underline"
-          href="https://status.projectdesk.app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          status.projectdesk.app
-        </a>
-        . For anything else, let us know what’s happening using the form below.
+        Need some support? Let us know what’s happening using the form below.
       </p>
       <div className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm">
         <p>
