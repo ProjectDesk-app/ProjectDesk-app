@@ -36,6 +36,7 @@ export default function Layout({
   const [activeModal, setActiveModal] = useState<AccountModalType | null>(null);
   const [showSponsorDetails, setShowSponsorDetails] = useState(false);
   const [managingSubscription, setManagingSubscription] = useState(false);
+  const [notifyingSponsor, setNotifyingSponsor] = useState(false);
   const userRole = (session?.user as any)?.role;
   const isAuthenticated = Boolean(session);
 
@@ -149,6 +150,7 @@ export default function Layout({
     accountProfile?.sponsor?.name && accountProfile?.sponsor?.email
       ? `${accountProfile.sponsor.name} (${accountProfile.sponsor.email})`
       : accountProfile?.sponsor?.email || accountProfile?.sponsor?.name || "your supervisor";
+  const sponsorEmail = accountProfile?.sponsor?.email || null;
 
   useEffect(() => {
     if (!sponsorSubscriptionInactive) {
@@ -176,6 +178,30 @@ export default function Layout({
       toast.error(error?.message || "Unable to manage subscription");
     } finally {
       setManagingSubscription(false);
+    }
+  };
+
+  const handleNotifySponsor = async () => {
+    if (!sponsorEmail || notifyingSponsor) return;
+    const confirmed = window.confirm(
+      `Send an email to ${sponsorEmail} letting them know you tried to sign in but their subscription is inactive?`
+    );
+    if (!confirmed) return;
+    setNotifyingSponsor(true);
+    try {
+      const res = await fetch("/api/account/notify-sponsor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.error || "Unable to notify sponsor");
+      }
+      toast.success("Sponsor notified");
+    } catch (error: any) {
+      toast.error(error?.message || "Unable to notify sponsor");
+    } finally {
+      setNotifyingSponsor(false);
     }
   };
 
@@ -432,6 +458,16 @@ export default function Layout({
               >
                 Sign out
               </button>
+              {sponsorEmail && (
+                <button
+                  type="button"
+                  onClick={handleNotifySponsor}
+                  disabled={notifyingSponsor}
+                  className="rounded-md border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-60"
+                >
+                  {notifyingSponsor ? "Sending..." : "Notify sponsor"}
+                </button>
+              )}
               <a
                 href="https://projectdesk.app/contact"
                 target="_blank"
