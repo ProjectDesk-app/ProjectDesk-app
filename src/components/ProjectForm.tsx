@@ -1,12 +1,7 @@
 import { useState } from 'react';
 import { MemberSelector, ProjectMemberFormValue } from '@/components/projects/MemberSelector';
 
-import { useSession } from "next-auth/react";
-
 export default function ProjectForm({ onCreated }: { onCreated: () => void }) {
-  const { data: session } = useSession();
-  const role = (session?.user as any)?.role;
-  const canCreate = role === "SUPERVISOR" || role === "ADMIN";
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
@@ -49,10 +44,6 @@ export default function ProjectForm({ onCreated }: { onCreated: () => void }) {
       const err = await res.json().catch(() => ({}));
       alert(err.error || 'Failed to create project');
     }
-  }
-
-  if (!canCreate) {
-    return null;
   }
 
   if (!open) {
