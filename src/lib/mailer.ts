@@ -12,11 +12,10 @@ function logMockEmail(to: string, subject: string, message: string) {
 }
 
 function buildHtmlTemplate(subject: string, message: string) {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXTAUTH_URL ||
-    "https://portal.projectdesk.app";
-  const logoUrl = `${base.replace(/\/$/, "")}/branding/ProjectDesk-Transparent.png`;
+  const fallbackLogoUrl =
+    "https://raw.githubusercontent.com/ProjectDesk-app/ProjectDesk-app/refs/heads/main/src/assets/branding/ProjectDesk-Transparent.png";
+  const envLogoUrl = (process.env.EMAIL_LOGO_URL || "").trim();
+  const logoUrl = envLogoUrl || fallbackLogoUrl;
   const safeMessage = message
     .split("\n")
     .map((line) => line.trim())
