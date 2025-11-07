@@ -50,7 +50,16 @@ export default async function handler(
   }
 
   if (req.method === "PATCH" || req.method === "PUT") {
-    const { id: bodyId, title, description, status, dueDate, startDate, duration } = req.body;
+    const {
+      id: bodyId,
+      title,
+      description,
+      status,
+      dueDate,
+      startDate,
+      duration,
+      assignedUserIds,
+    } = req.body;
 
     const taskIdToUse = bodyId || id;
 
@@ -73,6 +82,20 @@ export default async function handler(
         autoDuration = diff >= 0 ? diff : 0;
       }
 
+      const assignedUsersUpdate = Array.isArray(assignedUserIds)
+        ? {
+            set: [],
+            ...(assignedUserIds.length > 0
+              ? {
+                  connect: assignedUserIds
+                    .map((userId: any) => Number(userId))
+                    .filter((value) => !Number.isNaN(value))
+                    .map((userId) => ({ id: userId })),
+                }
+              : {}),
+          }
+        : undefined;
+
       const updated = await prisma.task.update({
         where: { id: Number(taskIdToUse) },
         data: {
@@ -82,7 +105,9 @@ export default async function handler(
           startDate: parsedStart,
           duration: autoDuration,
           status: normalizedStatus,
+          ...(assignedUsersUpdate ? { assignedUsers: assignedUsersUpdate } : {}),
         },
+        include: { assignedUsers: true },
       });
 
       return res.status(200).json(updated);

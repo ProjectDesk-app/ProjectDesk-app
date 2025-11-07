@@ -2,7 +2,7 @@ import Layout from "@/components/Layout";
 import { ProjectLayout } from "@/components/ProjectLayout";
 import { useRouter } from "next/router";
 import useSWR from "swr";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast, Toaster } from "react-hot-toast";
 import TaskFormModal from "@/components/TaskFormModal";
 import { useSession } from "next-auth/react";
@@ -16,11 +16,25 @@ export default function ProjectTasks() {
 
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role;
+  const myUserIdRaw = (session?.user as any)?.id;
+  const myUserId = typeof myUserIdRaw === "number" ? myUserIdRaw : Number(myUserIdRaw);
+  const canFilterByMine = !Number.isNaN(myUserId);
 
   const normalizeStatus = (status: unknown) =>
     typeof status === "string" ? status.toLowerCase() : String(status ?? "").toLowerCase();
 
   const [isModalOpen, setModalOpen] = useState(false);
+  const [showMineOnly, setShowMineOnly] = useState(false);
+
+  const describeAssignees = (task: any) => {
+    if (!task?.assignedUsers?.length) return "Unassigned";
+    return task.assignedUsers
+      .map((user: any) => {
+        const displayName = user.name || user.email || "Unnamed";
+        return canFilterByMine && user.id === myUserId ? `${displayName} (You)` : displayName;
+      })
+      .join(", ");
+  };
 
   const fetcher = (url: string) => fetch(url).then((r) => r.json());
   const { data, mutate } = useSWR(
@@ -29,10 +43,18 @@ export default function ProjectTasks() {
   );
   const tasks = data?.tasks || [];
 
-  const activeTasks = tasks.filter(
+  const filteredTasks = useMemo(() => {
+    if (!showMineOnly || !canFilterByMine) return tasks;
+    return tasks.filter((task: any) =>
+      Array.isArray(task.assignedUsers) &&
+      task.assignedUsers.some((user: any) => user.id === myUserId)
+    );
+  }, [tasks, showMineOnly, canFilterByMine, myUserId]);
+
+  const activeTasks = filteredTasks.filter(
     (t: any) => normalizeStatus(t.status) !== "done"
   );
-  const completedTasks = tasks.filter(
+  const completedTasks = filteredTasks.filter(
     (t: any) => normalizeStatus(t.status) === "done"
   );
 
@@ -71,13 +93,24 @@ export default function ProjectTasks() {
         <ProjectLayout projectId={projectId as string} title="Tasks">
           <div className="p-6 text-gray-700">
             <>
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <button
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                   onClick={() => setModalOpen(true)}
                 >
                   + New Task
                 </button>
+                {canFilterByMine && (
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300"
+                      checked={showMineOnly}
+                      onChange={(e) => setShowMineOnly(e.target.checked)}
+                    />
+                    <span>Show only my assigned tasks</span>
+                  </label>
+                )}
               </div>
 
               <TaskFormModal
@@ -106,6 +139,10 @@ export default function ProjectTasks() {
                       <p className="font-medium text-gray-900">{task.title}</p>
                       <p className="text-sm text-gray-500">
                         {task.description}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        <span className="font-semibold text-gray-600">Assignees:</span>{" "}
+                        {describeAssignees(task)}
                       </p>
                       <p
                         className={`text-xs ${
@@ -209,6 +246,10 @@ export default function ProjectTasks() {
                             {task.title}
                           </p>
                           <p className="text-xs">Completed</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            <span className="font-semibold text-gray-600">Assignees:</span>{" "}
+                            {describeAssignees(task)}
+                          </p>
                         </div>
                       </li>
                     ))}
