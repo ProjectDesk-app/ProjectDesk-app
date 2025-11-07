@@ -45,9 +45,23 @@ function Breadcrumbs({ project, task }: { project?: any; task?: any }) {
         <li>
           <span className="mx-1">/</span>
         </li>
-        <li className="text-gray-900 font-medium">
-          {task ? task.title : "Task"}
+        <li>
+          {project ? (
+            <button
+              type="button"
+              onClick={() => router.push(`/projects/${project.id}/tasks`)}
+              className="hover:underline"
+            >
+              Task List
+            </button>
+          ) : (
+            <span>Task List</span>
+          )}
         </li>
+        <li>
+          <span className="mx-1">/</span>
+        </li>
+        <li className="text-gray-900 font-medium">{task ? task.title : "Task"}</li>
       </ol>
     </nav>
   );
