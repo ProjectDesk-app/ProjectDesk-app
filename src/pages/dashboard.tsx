@@ -194,7 +194,7 @@ export default function Dashboard() {
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session) {
-    return { redirect: { destination: '/api/auth/signin', permanent: false } };
+    return { redirect: { destination: '/signin', permanent: false } };
   }
   return { props: {} };
 };

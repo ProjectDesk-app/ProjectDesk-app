@@ -110,7 +110,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session || (session.user as any)?.role !== "ADMIN") {
     return {
       redirect: {
-        destination: "/api/auth/signin",
+        destination: "/signin",
         permanent: false,
       },
     };

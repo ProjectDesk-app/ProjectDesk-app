@@ -513,7 +513,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session || (role !== "SUPERVISOR" && role !== "ADMIN")) {
     return {
       redirect: {
-        destination: "/api/auth/signin",
+        destination: "/signin",
         permanent: false,
       },
     };
