@@ -37,6 +37,8 @@ export default function Dashboard() {
   const completedProjects = projects.filter((p: any) => p.isCompleted);
   const activeCount = activeProjects.length;
   const completedCount = completedProjects.length;
+  const session = useSession();
+  const canCreateProjects = (session.data?.user as any)?.role === "SUPERVISOR" || (session.data?.user as any)?.role === "ADMIN";
 
   const renderProject = (p: any) => {
     const progress = (() => {
@@ -139,12 +141,14 @@ export default function Dashboard() {
       </div>
 
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <ProjectForm
-          onCreated={() => {
-            mutate();
-            toast.success("Project created successfully!");
-          }}
-        />
+        {canCreateProjects && (
+          <ProjectForm
+            onCreated={() => {
+              mutate();
+              toast.success("Project created successfully!");
+            }}
+          />
+        )}
         <label
           htmlFor="dashboard-filter"
           className="flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:items-center md:justify-end"

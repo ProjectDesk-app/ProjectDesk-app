@@ -20,7 +20,7 @@ export default function SignupPage() {
     if (accountType === "STUDENT") {
       return "Request access as a student. We'll notify your supervisor so they can sponsor your account.";
     }
-    return "Request access as a collaborator. We'll notify your supervisor so they can sponsor your account.";
+    return "Request access as a collaborator. We'll notify the principal investigator so they can sponsor your account.";
   }, [accountType]);
 
   useEffect(() => {
@@ -175,9 +175,6 @@ export default function SignupPage() {
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
                 placeholder="supervisor@example.ac.uk"
               />
-              <p className="text-xs text-gray-500">
-                We&rsquo;ll email your {accountType === "COLLABORATOR" ? "Principal Investigator" : "supervisor"} so they can sponsor your access.
-              </p>
             </div>
           )}
           <button
