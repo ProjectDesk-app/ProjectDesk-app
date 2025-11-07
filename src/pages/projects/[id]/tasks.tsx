@@ -489,7 +489,7 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
           );
         })}
       </div>
-      <DragOverlay>
+      <DragOverlay adjustScale={false} dropAnimation={null}>
         {activeTask ? (
           <KanbanCardContent
             task={activeTask}
