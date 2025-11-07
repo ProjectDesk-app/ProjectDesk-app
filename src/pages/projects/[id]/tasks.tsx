@@ -368,6 +368,7 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
   const [activeTaskRect, setActiveTaskRect] = useState<{ width: number; height: number } | null>(
     null
   );
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -417,11 +418,20 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
     } else {
       setActiveTaskRect(null);
     }
+    if (event.active.rect.current.translated) {
+      setDragOffset({
+        x: event.active.rect.current.translated.left - event.active.rect.current.initial!.left,
+        y: event.active.rect.current.translated.top - event.active.rect.current.initial!.top,
+      });
+    } else {
+      setDragOffset(null);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveTask(null);
     setActiveTaskRect(null);
+    setDragOffset(null);
     const { active, over } = event;
     if (!active?.id || !over?.id) return;
     const targetColumn = over.id as KanbanColumnKey;
@@ -502,6 +512,9 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
             style={{
               width: activeTaskRect?.width,
               height: activeTaskRect?.height,
+              transform: dragOffset
+                ? `translate(${dragOffset.x}px, ${dragOffset.y}px)`
+                : undefined,
             }}
           />
         ) : null}
