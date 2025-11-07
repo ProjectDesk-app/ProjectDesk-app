@@ -18,9 +18,10 @@ export default function Dashboard() {
   const [category, setCategory] = useState("all");
   const [showCompleted, setShowCompleted] = useState(false);
   const { data, mutate } = useSWR(
-  category === "all" ? "/api/projects" : `/api/projects?category=${category}`,
-  fetcher
-);
+    category === "all" ? "/api/projects" : `/api/projects?category=${category}`,
+    fetcher
+  );
+  const session = useSession();
 
   if (!data)
     return (
@@ -38,7 +39,6 @@ export default function Dashboard() {
   const completedProjects = projects.filter((p: any) => p.isCompleted);
   const activeCount = activeProjects.length;
   const completedCount = completedProjects.length;
-  const session = useSession();
   const canCreateProjects = (session.data?.user as any)?.role === "SUPERVISOR" || (session.data?.user as any)?.role === "ADMIN";
 
   const renderProject = (p: any) => {
