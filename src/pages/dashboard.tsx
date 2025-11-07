@@ -7,6 +7,7 @@ import useSWR from "swr";
 import Layout from "@/components/Layout";
 import { Toaster } from "react-hot-toast";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { LayoutDashboard } from "lucide-react";
 import { LoadingState } from "@/components/LoadingState";
 import { getProjectLeadLabel } from "@/lib/projectLabels";
