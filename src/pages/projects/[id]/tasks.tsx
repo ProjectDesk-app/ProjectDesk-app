@@ -365,6 +365,9 @@ type KanbanViewProps = {
 
 function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: KanbanViewProps) {
   const [activeTask, setActiveTask] = useState<any | null>(null);
+  const [activeTaskRect, setActiveTaskRect] = useState<{ width: number; height: number } | null>(
+    null
+  );
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -407,10 +410,18 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
     if (!taskId) return;
     const task = tasks.find((t) => String(t.id) === String(taskId));
     setActiveTask(task ?? null);
+    const width = event.active.rect.current.initial?.width;
+    const height = event.active.rect.current.initial?.height;
+    if (width && height) {
+      setActiveTaskRect({ width, height });
+    } else {
+      setActiveTaskRect(null);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveTask(null);
+    setActiveTaskRect(null);
     const { active, over } = event;
     if (!active?.id || !over?.id) return;
     const targetColumn = over.id as KanbanColumnKey;
@@ -480,15 +491,22 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
       </div>
       <DragOverlay>
         {activeTask ? (
-          <KanbanCardContent
-            task={activeTask}
-            describeAssignees={describeAssignees}
-            navigateToTask={navigateToTask}
-            onToggleFlag={toggleFlag}
-            onDelete={deleteTask}
-            userRole={userRole}
-            isDragging
-          />
+          <div
+            style={{
+              width: activeTaskRect?.width,
+              height: activeTaskRect?.height,
+            }}
+          >
+            <KanbanCardContent
+              task={activeTask}
+              describeAssignees={describeAssignees}
+              navigateToTask={navigateToTask}
+              onToggleFlag={toggleFlag}
+              onDelete={deleteTask}
+              userRole={userRole}
+              isDragging
+            />
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>
