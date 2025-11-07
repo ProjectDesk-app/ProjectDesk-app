@@ -491,22 +491,19 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
       </div>
       <DragOverlay>
         {activeTask ? (
-          <div
+          <KanbanCardContent
+            task={activeTask}
+            describeAssignees={describeAssignees}
+            navigateToTask={navigateToTask}
+            onToggleFlag={toggleFlag}
+            onDelete={deleteTask}
+            userRole={userRole}
+            isDragging
             style={{
               width: activeTaskRect?.width,
               height: activeTaskRect?.height,
             }}
-          >
-            <KanbanCardContent
-              task={activeTask}
-              describeAssignees={describeAssignees}
-              navigateToTask={navigateToTask}
-              onToggleFlag={toggleFlag}
-              onDelete={deleteTask}
-              userRole={userRole}
-              isDragging
-            />
-          </div>
+          />
         ) : null}
       </DragOverlay>
     </DndContext>
