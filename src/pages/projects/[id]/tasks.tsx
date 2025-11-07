@@ -19,7 +19,6 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 
 type KanbanColumnKey = "todo" | "in_progress" | "done";
@@ -522,7 +521,11 @@ function KanbanCard({
     id: String(task.id),
   });
 
-  const style = transform ? { transform: CSS.Transform.toString(transform) } : undefined;
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x ?? 0}px, ${transform.y ?? 0}px, 0)`,
+      }
+    : undefined;
 
   const dragHandle = (
     <button
