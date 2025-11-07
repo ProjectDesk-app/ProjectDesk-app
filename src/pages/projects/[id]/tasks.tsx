@@ -3,12 +3,26 @@ import { ProjectLayout } from "@/components/ProjectLayout";
 import { useRouter } from "next/router";
 import type { NextRouter } from "next/router";
 import useSWR, { type KeyedMutator } from "swr";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode, forwardRef } from "react";
 import { toast, Toaster } from "react-hot-toast";
 import TaskFormModal from "@/components/TaskFormModal";
 import { useSession } from "next-auth/react";
 import StatusPill from "@/components/StatusPill";
 import { LoadingState } from "@/components/LoadingState";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCorners,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 
 type KanbanColumnKey = "todo" | "in_progress" | "done";
 
@@ -38,6 +52,12 @@ const KANBAN_COLUMNS: KanbanColumn[] = [
 
 const ALL_KANBAN_STATUSES = new Set<string>();
 KANBAN_COLUMNS.forEach((column) => column.statuses.forEach((status) => ALL_KANBAN_STATUSES.add(status)));
+
+const KANBAN_STATUS_DEFAULTS: Record<KanbanColumnKey, string> = {
+  todo: "TODO",
+  in_progress: "IN_PROGRESS",
+  done: "DONE",
+};
 
 export default function ProjectTasks() {
   const router = useRouter();
@@ -344,6 +364,13 @@ type KanbanViewProps = {
 };
 
 function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: KanbanViewProps) {
+  const [activeTask, setActiveTask] = useState<any | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  );
+
   const navigateToTask = (taskId: number) => {
     router.push(`/tasks/${taskId}`);
   };
@@ -375,23 +402,224 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
     }
   };
 
-  const renderCard = (task: any) => {
+  const handleDragStart = (event: DragStartEvent) => {
+    const taskId = event.active?.id;
+    if (!taskId) return;
+    const task = tasks.find((t) => String(t.id) === String(taskId));
+    setActiveTask(task ?? null);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveTask(null);
+    const { active, over } = event;
+    if (!active?.id || !over?.id) return;
+    const targetColumn = over.id as KanbanColumnKey;
+    const taskId = Number(active.id);
+    if (Number.isNaN(taskId)) return;
+    const nextStatus = KANBAN_STATUS_DEFAULTS[targetColumn];
+    if (!nextStatus) return;
+    const task = tasks.find((t) => Number(t.id) === taskId);
+    if (!task) return;
+    const currentStatus = (task.status || "").toUpperCase();
+    const columnDefinition = KANBAN_COLUMNS.find((col) => col.key === targetColumn);
+    if (columnDefinition?.statuses.has(currentStatus)) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: taskId, status: nextStatus }),
+      });
+      if (!res.ok) throw new Error("Failed to update task status");
+      await mutate();
+      toast.success(`Moved to ${columnDefinition?.label ?? targetColumn}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to move task");
+    }
+  };
+
+  const renderCard = (task: any) => (
+    <KanbanCard
+      key={task.id}
+      task={task}
+      describeAssignees={describeAssignees}
+      navigateToTask={navigateToTask}
+      onToggleFlag={toggleFlag}
+      onDelete={deleteTask}
+      userRole={userRole}
+    />
+  );
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        {KANBAN_COLUMNS.map((column) => {
+          const columnTasks = tasks.filter((task: any) => {
+            const status = (task.status || "").toUpperCase();
+            if (column.statuses.has(status)) return true;
+            if (!ALL_KANBAN_STATUSES.has(status) && column.key === "todo") return true;
+            return false;
+          });
+
+          return (
+            <KanbanColumnSection
+              key={column.key}
+              column={column}
+              tasks={columnTasks}
+              renderCard={renderCard}
+            />
+          );
+        })}
+      </div>
+      <DragOverlay>
+        {activeTask ? (
+          <KanbanCardContent
+            task={activeTask}
+            describeAssignees={describeAssignees}
+            navigateToTask={navigateToTask}
+            onToggleFlag={toggleFlag}
+            onDelete={deleteTask}
+            userRole={userRole}
+            isDragging
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+type KanbanColumnSectionProps = {
+  column: KanbanColumn;
+  tasks: any[];
+  renderCard: (task: any) => ReactNode;
+};
+
+function KanbanColumnSection({ column, tasks, renderCard }: KanbanColumnSectionProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.key,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-xl border bg-gray-50 p-4 ${
+        isOver ? "border-blue-400 ring-2 ring-blue-200" : "border-gray-200"
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold uppercase text-gray-600">{column.label}</h3>
+        <span className="text-xs text-gray-500">{tasks.length}</span>
+      </div>
+      <div className="mt-4 space-y-3 min-h-[80px]">
+        {tasks.length === 0 ? (
+          <p className="text-xs text-gray-400">No tasks here.</p>
+        ) : (
+          tasks.map((task: any) => renderCard(task))
+        )}
+      </div>
+    </div>
+  );
+}
+
+type KanbanCardProps = {
+  task: any;
+  describeAssignees: (task: any) => string;
+  navigateToTask: (id: number) => void;
+  onToggleFlag: (task: any) => void;
+  onDelete: (task: any) => void;
+  userRole: string | undefined;
+  isDragging?: boolean;
+};
+
+function KanbanCard({
+  task,
+  describeAssignees,
+  navigateToTask,
+  onToggleFlag,
+  onDelete,
+  userRole,
+  isDragging,
+}: KanbanCardProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging: dragging } = useDraggable({
+    id: String(task.id),
+  });
+
+  const style = transform ? { transform: CSS.Transform.toString(transform) } : undefined;
+
+  const dragHandle = (
+    <button
+      type="button"
+      className="rounded bg-gray-100 p-1 text-gray-500 hover:text-gray-800"
+      {...listeners}
+      {...attributes}
+    >
+      <GripVertical className="h-4 w-4" />
+      <span className="sr-only">Drag task</span>
+    </button>
+  );
+
+  return (
+    <KanbanCardContent
+      ref={setNodeRef}
+      style={style}
+      task={task}
+      describeAssignees={describeAssignees}
+      navigateToTask={navigateToTask}
+      onToggleFlag={onToggleFlag}
+      onDelete={onDelete}
+      userRole={userRole}
+      dragHandle={dragHandle}
+      isDragging={dragging || isDragging}
+    />
+  );
+}
+
+type KanbanCardContentProps = KanbanCardProps & {
+  dragHandle?: ReactNode;
+};
+
+const KanbanCardContent = forwardRef<HTMLDivElement, KanbanCardContentProps>(
+  (
+    {
+      task,
+      describeAssignees,
+      navigateToTask,
+      onToggleFlag,
+      onDelete,
+      userRole,
+      dragHandle,
+      isDragging,
+      ...rest
+    },
+    ref
+  ) => {
     const overdue =
       task.dueDate && new Date(task.dueDate) < new Date() && (task.status || "").toUpperCase() !== "DONE";
 
     return (
       <div
-        key={task.id}
+        ref={ref}
+        {...rest}
         className={`rounded-lg border p-4 shadow-sm ${
           task.flagged ? "border-red-500 bg-red-50" : "border-gray-200 bg-white"
-        }`}
+        } ${isDragging ? "opacity-70" : ""}`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="cursor-pointer" onClick={() => navigateToTask(task.id)}>
             <p className="font-semibold text-gray-900">{task.title}</p>
             <p className="text-xs text-gray-500">{describeAssignees(task)}</p>
           </div>
-          <StatusPill status={task.status} />
+          <div className="flex items-center gap-2">
+            {dragHandle}
+            <StatusPill status={task.status} />
+          </div>
         </div>
         {task.description && <p className="mt-2 text-sm text-gray-600">{task.description}</p>}
         <p className="mt-2 text-xs text-gray-500">
@@ -405,46 +633,18 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
         <div className="mt-3 flex items-center justify-between text-sm">
           <button
             className={`${task.flagged ? "text-gray-600 hover:text-gray-800" : "text-red-600 hover:text-red-800"}`}
-            onClick={() => toggleFlag(task)}
+            onClick={() => onToggleFlag(task)}
           >
             {task.flagged ? "Unflag" : "🚩 Flag"}
           </button>
           {userRole === "SUPERVISOR" && (
-            <button className="text-gray-500 hover:text-red-600" onClick={() => deleteTask(task)}>
+            <button className="text-gray-500 hover:text-red-600" onClick={() => onDelete(task)}>
               🗑️
             </button>
           )}
         </div>
       </div>
     );
-  };
-
-  return (
-    <div className="mt-6 grid gap-4 md:grid-cols-3">
-      {KANBAN_COLUMNS.map((column) => {
-        const columnTasks = tasks.filter((task: any) => {
-          const status = (task.status || "").toUpperCase();
-          if (column.statuses.has(status)) return true;
-          if (!ALL_KANBAN_STATUSES.has(status) && column.key === "todo") return true;
-          return false;
-        });
-
-        return (
-          <div key={column.key} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase text-gray-600">{column.label}</h3>
-              <span className="text-xs text-gray-500">{columnTasks.length}</span>
-            </div>
-            <div className="mt-4 space-y-3">
-              {columnTasks.length === 0 ? (
-                <p className="text-xs text-gray-400">No tasks here.</p>
-              ) : (
-                columnTasks.map((task: any) => renderCard(task))
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+  }
+);
+KanbanCardContent.displayName = "KanbanCardContent";
