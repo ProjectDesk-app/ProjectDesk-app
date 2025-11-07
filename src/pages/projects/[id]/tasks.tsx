@@ -3,7 +3,7 @@ import { ProjectLayout } from "@/components/ProjectLayout";
 import { useRouter } from "next/router";
 import type { NextRouter } from "next/router";
 import useSWR, { type KeyedMutator } from "swr";
-import { useMemo, useState, type ReactNode, forwardRef } from "react";
+import { useMemo, useState, type ReactNode, type HTMLAttributes, forwardRef } from "react";
 import { toast, Toaster } from "react-hot-toast";
 import TaskFormModal from "@/components/TaskFormModal";
 import { useSession } from "next-auth/react";
@@ -581,9 +581,10 @@ function KanbanCard({
   );
 }
 
-type KanbanCardContentProps = KanbanCardProps & {
-  dragHandle?: ReactNode;
-};
+type KanbanCardContentProps = KanbanCardProps &
+  HTMLAttributes<HTMLDivElement> & {
+    dragHandle?: ReactNode;
+  };
 
 const KanbanCardContent = forwardRef<HTMLDivElement, KanbanCardContentProps>(
   (
