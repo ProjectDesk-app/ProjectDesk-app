@@ -11,7 +11,6 @@ import StatusPill from "@/components/StatusPill";
 import { LoadingState } from "@/components/LoadingState";
 import {
   DndContext,
-  DragOverlay,
   PointerSensor,
   closestCorners,
   useDraggable,
@@ -19,7 +18,6 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
@@ -364,11 +362,6 @@ type KanbanViewProps = {
 };
 
 function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: KanbanViewProps) {
-  const [activeTask, setActiveTask] = useState<any | null>(null);
-  const [activeTaskRect, setActiveTaskRect] = useState<{ width: number; height: number } | null>(
-    null
-  );
-  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -406,32 +399,7 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
     }
   };
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const taskId = event.active?.id;
-    if (!taskId) return;
-    const task = tasks.find((t) => String(t.id) === String(taskId));
-    setActiveTask(task ?? null);
-    const width = event.active.rect.current.initial?.width;
-    const height = event.active.rect.current.initial?.height;
-    if (width && height) {
-      setActiveTaskRect({ width, height });
-    } else {
-      setActiveTaskRect(null);
-    }
-    if (event.active.rect.current.translated) {
-      setDragOffset({
-        x: event.active.rect.current.translated.left - event.active.rect.current.initial!.left,
-        y: event.active.rect.current.translated.top - event.active.rect.current.initial!.top,
-      });
-    } else {
-      setDragOffset(null);
-    }
-  };
-
   const handleDragEnd = async (event: DragEndEvent) => {
-    setActiveTask(null);
-    setActiveTaskRect(null);
-    setDragOffset(null);
     const { active, over } = event;
     if (!active?.id || !over?.id) return;
     const targetColumn = over.id as KanbanColumnKey;
@@ -474,12 +442,7 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
   );
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
+    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         {KANBAN_COLUMNS.map((column) => {
           const columnTasks = tasks.filter((task: any) => {
@@ -499,26 +462,6 @@ function KanbanView({ tasks, describeAssignees, router, mutate, userRole }: Kanb
           );
         })}
       </div>
-      <DragOverlay adjustScale={false} dropAnimation={null}>
-        {activeTask ? (
-          <KanbanCardContent
-            task={activeTask}
-            describeAssignees={describeAssignees}
-            navigateToTask={navigateToTask}
-            onToggleFlag={toggleFlag}
-            onDelete={deleteTask}
-            userRole={userRole}
-            isDragging
-            style={{
-              width: activeTaskRect?.width,
-              height: activeTaskRect?.height,
-              transform: dragOffset
-                ? `translate(${dragOffset.x}px, ${dragOffset.y}px)`
-                : undefined,
-            }}
-          />
-        ) : null}
-      </DragOverlay>
     </DndContext>
   );
 }
@@ -638,7 +581,7 @@ const KanbanCardContent = forwardRef<HTMLDivElement, KanbanCardContentProps>(
         {...rest}
         className={`rounded-lg border p-4 shadow-sm ${
           task.flagged ? "border-red-500 bg-red-50" : "border-gray-200 bg-white"
-        } ${isDragging ? "opacity-70" : ""}`}
+        } ${isDragging ? "opacity-75" : ""}`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="cursor-pointer" onClick={() => navigateToTask(task.id)}>
