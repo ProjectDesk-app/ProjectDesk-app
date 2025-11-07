@@ -138,17 +138,21 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <ProjectForm
           onCreated={() => {
             mutate();
             toast.success("Project created successfully!");
           }}
         />
-        <label className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-          <span>Filter:</span>
+        <label
+          htmlFor="dashboard-filter"
+          className="flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:items-center md:justify-end"
+        >
+          <span className="font-medium text-gray-700">Filter:</span>
           <select
-            className="border rounded-md px-3 py-1 text-sm"
+            id="dashboard-filter"
+            className="w-full rounded-md border px-3 py-1 text-sm sm:w-auto"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           >

@@ -212,43 +212,46 @@ export default function Layout({
         <link rel="icon" type="image/png" href="/branding/favicon.png" />
       </Head>
       <header className="border-b bg-white/75 backdrop-blur">
-        <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
             <Image src={Logo} alt="ProjectDesk" className="h-8 w-auto" priority />
             <span className="sr-only">ProjectDesk home</span>
           </Link>
-          {isAuthenticated ? (
-            <div className="flex items-center gap-3">
-              {allowedNavItems.length > 0 && (
-                <nav className="hidden md:flex items-center gap-1 rounded-full border border-gray-200 bg-white/90 px-2 py-1 shadow-sm">
-                  {allowedNavItems.map(({ label, href, icon: Icon }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition"
-                    >
-                      {Icon && <Icon className="h-4 w-4" />}
-                      <span>{label}</span>
-                    </Link>
-                  ))}
-                </nav>
-              )}
+          {isAuthenticated && allowedNavItems.length > 0 && (
+            <nav
+              className="flex w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-2xl border border-gray-200 bg-white/90 px-2 py-1 text-sm shadow-sm sm:w-auto"
+              aria-label="Primary"
+            >
+              {allowedNavItems.map(({ label, href, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition"
+                >
+                  {Icon && <Icon className="h-4 w-4" />}
+                  <span>{label}</span>
+                </Link>
+              ))}
+            </nav>
+          )}
+          <div className="ml-auto flex items-center gap-3">
+            {isAuthenticated ? (
+              <>
+                <Link href="/notifications" className="relative">
+                  <BellIcon className="h-5 w-5 text-gray-700 hover:text-blue-600 transition" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Link>
 
-              <Link href="/notifications" className="relative">
-                <BellIcon className="h-5 w-5 text-gray-700 hover:text-blue-600 transition" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </Link>
-
-              <Menu as="div" className="relative">
-                <Menu.Button className="flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100">
-                  <UserCircleIcon className="h-5 w-5" />
-                  <span>My Account</span>
-                  <ChevronDownIcon className="h-4 w-4" />
-                </Menu.Button>
+                <Menu as="div" className="relative">
+                  <Menu.Button className="flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100">
+                    <UserCircleIcon className="h-5 w-5" />
+                    <span>My Account</span>
+                    <ChevronDownIcon className="h-4 w-4" />
+                  </Menu.Button>
                 <Transition
                   as={Fragment}
                   enter="transition ease-out duration-100"
@@ -322,23 +325,24 @@ export default function Layout({
                   </Menu.Items>
                 </Transition>
               </Menu>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => signIn(undefined, { callbackUrl: "/dashboard" })}
-                className="rounded-full px-4 py-1.5 text-sm font-semibold text-gray-700 border border-gray-200 hover:bg-gray-100 transition"
-              >
-                Sign in
-              </button>
-              <Link
-                href="/signup"
-                className="rounded-full bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition"
-              >
-                Create account
-              </Link>
-            </div>
-          )}
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => signIn(undefined, { callbackUrl: "/dashboard" })}
+                  className="rounded-full border border-gray-200 px-4 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+                >
+                  Sign in
+                </button>
+                <Link
+                  href="/signup"
+                  className="rounded-full bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition"
+                >
+                  Create account
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </header>
       {isAuthenticated && inactiveSponsorWarning && (
