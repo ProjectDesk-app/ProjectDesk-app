@@ -115,7 +115,7 @@ model Comment {
 
 model Notification {
   id          Int      @id @default(autoincrement())
-  projectId   Int
+  projectId   Int?
   taskId      Int?
   actorId     Int
   recipientId Int
@@ -124,7 +124,7 @@ model Notification {
   read        Boolean  @default(false)
   createdAt   DateTime @default(now())
   actor       User     @relation("ActorNotifications", fields: [actorId], references: [id])
-  project     Project  @relation(fields: [projectId], references: [id])
+  project     Project? @relation(fields: [projectId], references: [id])
   recipient   User     @relation("RecipientNotifications", fields: [recipientId], references: [id])
   task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
 

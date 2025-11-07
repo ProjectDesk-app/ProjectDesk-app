@@ -210,5 +210,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `Hello ${greetingName},\n\nWelcome to ProjectDesk! Please activate your account by visiting the link below:\n${verifyLink}\n\nIf you did not sign up, you can safely ignore this message.`
   );
 
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (adminEmail) {
+    const subject = `[ProjectDesk] New ${role.toLowerCase()} signup`;
+    const details = [
+      `Name: ${greetingName}`,
+      `Email: ${normalizedEmail}`,
+      `Role: ${role}`,
+      `Subscription type: ${subscriptionType}`,
+    ];
+    if (normalizedSponsorEmail) {
+      details.push(`Supervisor provided: ${normalizedSponsorEmail}`);
+    }
+    if (desiredRole && desiredRole !== role) {
+      details.push(`Requested role: ${desiredRole}`);
+    }
+    const body = `Hello Bradley,\n\nA new user just created an account on ProjectDesk.\n\n${details.join(
+      "\n"
+    )}\n\nSign in to the Admin Dashboard if you need to review this account.\n\n— ProjectDesk`;
+    try {
+      await sendEmail(adminEmail, subject, body);
+    } catch (error) {
+      console.error("Failed to send admin signup notification", error);
+    }
+  }
+
   return res.status(201).json({ message: confirmationMessage });
 }
