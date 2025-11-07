@@ -330,13 +330,13 @@ export default function Layout({
               <>
                 <button
                   onClick={() => signIn(undefined, { callbackUrl: "/dashboard" })}
-                  className="rounded-full border border-gray-200 px-4 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+                  className="rounded-full bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition"
                 >
                   Sign in
                 </button>
                 <Link
                   href="/signup"
-                  className="rounded-full bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition"
+                  className="rounded-full border border-blue-600 px-4 py-1.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition"
                 >
                   Create account
                 </Link>
