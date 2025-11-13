@@ -66,7 +66,7 @@ export default function TaskLibrary() {
         {/* Page intro */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
           <h1 className="mb-2 flex items-center gap-2 text-2xl font-semibold text-gray-900">
-            <Layers className="h-6 w-6 text-gray-800" />
+            <Layers className="h-7 w-7 text-blue-600" />
             <span>Task Library</span>
           </h1>
           <p className="mt-2 text-sm text-blue-900">
