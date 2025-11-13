@@ -403,22 +403,22 @@ export default function ProjectOverview() {
     {
       label: "At Risk",
       description:
-        "Triggered when exactly one task has passed its due date and is still active.",
+        "Triggered when two or more tasks have passed their due dates and remain active.",
       current:
-        behindScheduleCount === 1 ? "Currently 1 task past due." : undefined,
+        behindScheduleCount >= 2
+          ? `${pluralize(
+              behindScheduleCount,
+              "task"
+            )} currently past due and unresolved.`
+          : undefined,
     },
     {
       label: "Danger",
       description:
-        "Triggered when two or more tasks are past due, or when any task extends beyond the project end date.",
+        "Triggered when tasks exceed the planned project boundary (duration overflow or due dates after the project end date).",
       current:
-        behindScheduleCount >= 2 ||
-        durationOverflowCount > 0 ||
-        beyondProjectCount > 0
+        durationOverflowCount > 0 || beyondProjectCount > 0
           ? [
-              behindScheduleCount >= 2
-                ? `${pluralize(behindScheduleCount, "task")} past due`
-                : null,
               durationOverflowCount > 0
                 ? `${pluralize(
                     durationOverflowCount,

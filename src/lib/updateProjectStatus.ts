@@ -63,8 +63,6 @@ export async function updateProjectStatus(projectId: number) {
   } else if (durationOverflow.length > 0 || tasksBeyondProject.length > 0) {
     newStatus = "Danger";
   } else if (behindScheduleTasks.length >= 2) {
-    newStatus = "Danger";
-  } else if (behindScheduleTasks.length === 1) {
     newStatus = "At Risk";
   } else if (overdueTasks.length > 0) {
     newStatus = "Behind Schedule";
