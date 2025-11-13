@@ -42,14 +42,22 @@ export async function updateProjectStatus(projectId: number) {
   );
 
   // Identify tasks behind schedule (based on status and due date)
-  const behindScheduleTasks = project.tasks.filter(
-    t =>
-      t.dueDate &&
-      new Date(t.dueDate).getTime() < now.getTime() &&
-      ["behind_schedule", "not_started", "to_do", "in_progress"].includes(
-        normalizeStatus(t.status)
-      )
-  );
+  const activeStatuses = new Set([
+    "todo",
+    "to_do",
+    "in_progress",
+    "behind_schedule",
+    "at_risk",
+    "blocked",
+    "review",
+    "deferred",
+  ]);
+
+  const behindScheduleTasks = project.tasks.filter(t => {
+    if (!t.dueDate) return false;
+    const status = normalizeStatus(t.status);
+    return new Date(t.dueDate).getTime() < now.getTime() && activeStatuses.has(status);
+  });
 
   let newStatus = "On Track";
 
