@@ -485,19 +485,6 @@ export default function ProjectOverview() {
                         </button>
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600">
-                      <p className="font-semibold text-gray-900">
-                        {leadLabel}: {project.supervisor?.name || "Unassigned"}
-                      </p>
-                      {project.supervisor?.email && (
-                        <a
-                          href={`mailto:${project.supervisor.email}`}
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          {project.supervisor.email}
-                        </a>
-                      )}
-                    </div>
                   </div>
 
                   <div className="mt-6 rounded-lg border border-gray-100 bg-gray-50 p-4">
