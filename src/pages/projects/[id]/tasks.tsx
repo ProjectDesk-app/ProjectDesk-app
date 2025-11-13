@@ -107,6 +107,29 @@ export default function ProjectTasks() {
     (t: any) => normalizeStatus(t.status) === "done"
   );
 
+  const taskStats = useMemo(() => {
+    const total = filteredTasks.length;
+    const assigned = filteredTasks.filter(
+      (task: any) => Array.isArray(task.assignedUsers) && task.assignedUsers.length > 0
+    ).length;
+    const inProgress = filteredTasks.filter(
+      (task: any) => normalizeStatus(task.status) === "in_progress"
+    ).length;
+    const blocked = filteredTasks.filter(
+      (task: any) => normalizeStatus(task.status) === "blocked"
+    ).length;
+    const flagged = filteredTasks.filter((task: any) => task.flagged).length;
+    return { total, assigned, inProgress, blocked, flagged };
+  }, [filteredTasks]);
+
+  const taskStatsCards = [
+    { label: "Total tasks", value: taskStats.total, helper: "Across this project" },
+    { label: "Assigned", value: taskStats.assigned, helper: "Have an owner" },
+    { label: "In progress", value: taskStats.inProgress, helper: "Actively moving" },
+    { label: "Blocked", value: taskStats.blocked, helper: "Need attention" },
+    { label: "Flagged", value: taskStats.flagged, helper: "Require support" },
+  ];
+
   if (!data) {
     return (
       <Layout title="Project Tasks">
@@ -194,6 +217,23 @@ export default function ProjectTasks() {
                 onClose={() => setModalOpen(false)}
                 mutate={mutate}
               />
+
+              <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                {taskStatsCards.map((card) => (
+                  <div
+                    key={card.label}
+                    className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                  >
+                    <p className="text-xs uppercase tracking-wide text-gray-500">
+                      {card.label}
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold text-gray-900">
+                      {card.value.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-600">{card.helper}</p>
+                  </div>
+                ))}
+              </div>
 
               {viewMode === "list" ? (
                 <>

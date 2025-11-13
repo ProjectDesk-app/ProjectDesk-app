@@ -6,6 +6,7 @@ import { toast, Toaster } from "react-hot-toast";
 import { useMemo, useState } from "react";
 import { LoadingState } from "@/components/LoadingState";
 import { getProjectLeadLabel } from "@/lib/projectLabels";
+import { QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 
 type PendingTask = {
   id: number;
@@ -38,6 +39,10 @@ export default function ProjectOverview() {
     projectId ? `/api/projects/${projectId}` : null,
     fetcher
   );
+  const { data: tasksData } = useSWR(
+    projectId ? `/api/projects/${projectId}/tasks` : null,
+    fetcher
+  );
 
   const [pendingTasks, setPendingTasks] = useState<PendingTask[] | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -46,6 +51,7 @@ export default function ProjectOverview() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [isSendingUpdate, setIsSendingUpdate] = useState(false);
+  const [showStatusInfo, setShowStatusInfo] = useState(false);
 
   const formatTaskStatus = (status: string) =>
     status
@@ -55,6 +61,21 @@ export default function ProjectOverview() {
           .map((segment) => segment.charAt(0) + segment.slice(1).toLowerCase())
           .join(" ")
       : "Unknown";
+
+  const normalizeTaskStatus = (status: unknown) =>
+    typeof status === "string" ? status.toLowerCase() : String(status ?? "").toLowerCase();
+
+  const formatShortDate = (value?: string | null) => {
+    if (!value) return "Not set";
+    return new Date(value).toLocaleDateString(undefined, {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const pluralize = (count: number, noun: string) =>
+    `${count} ${noun}${count === 1 ? "" : "s"}`;
 
   const teamMembers: TeamMember[] = useMemo(() => {
     if (!project) return [];
@@ -296,8 +317,147 @@ export default function ProjectOverview() {
         )
       : 0;
 
-
   const resolvedProjectId = projectId ?? String(project.id);
+  const projectTasks = Array.isArray(tasksData?.tasks) ? tasksData.tasks : [];
+  const totalTasks = projectTasks.length;
+  const completedTasksCount = projectTasks.filter((task: any) => {
+    const status = normalizeTaskStatus(task.status);
+    return status === "done" || status === "complete" || status === "completed";
+  }).length;
+  const tasksProgressPercent =
+    totalTasks > 0 ? Math.round((completedTasksCount / totalTasks) * 100) : 0;
+  const tasksLoading = Boolean(projectId && !tasksData);
+
+  const now = new Date();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const projectEndDate = project.endDate ? new Date(project.endDate) : null;
+
+  const overdueTasks = projectTasks.filter((task: any) => {
+    if (!task.dueDate) return false;
+    const dueTime = new Date(task.dueDate).getTime();
+    return (
+      dueTime < now.getTime() - oneDayMs &&
+      !["done", "completed", "complete"].includes(
+        normalizeTaskStatus(task.status)
+      )
+    );
+  });
+
+  const behindScheduleTasks = projectTasks.filter((task: any) => {
+    if (!task.dueDate) return false;
+    const dueTime = new Date(task.dueDate).getTime();
+    const status = normalizeTaskStatus(task.status);
+    return (
+      dueTime < now.getTime() &&
+      ["behind_schedule", "not_started", "to_do", "todo", "in_progress"].includes(
+        status
+      )
+    );
+  });
+
+  const durationOverflow = projectTasks.filter((task: any) => {
+    if (!task.startDate || !projectEndDate) return false;
+    if (typeof task.duration !== "number" || task.duration <= 0) return false;
+    return (
+      new Date(task.startDate).getTime() + task.duration * oneDayMs >
+      projectEndDate.getTime()
+    );
+  });
+
+  const tasksBeyondProject = projectTasks.filter((task: any) => {
+    if (!task.dueDate || !projectEndDate) return false;
+    return new Date(task.dueDate).getTime() > projectEndDate.getTime();
+  });
+
+  const overdueCount = overdueTasks.length;
+  const behindScheduleCount = behindScheduleTasks.length;
+  const durationOverflowCount = durationOverflow.length;
+  const beyondProjectCount = tasksBeyondProject.length;
+
+  const statusDetails = useMemo(
+    () => [
+      {
+        label: "Not Started",
+        description: "Triggered when the project has no tasks yet.",
+        current:
+          totalTasks === 0
+            ? "Currently true — add your first task to begin tracking."
+            : undefined,
+      },
+      {
+        label: "On Track",
+        description:
+          "Default state when there are no overdue tasks or schedule risks.",
+        current:
+          project.status === "On Track"
+            ? "Currently selected status."
+            : undefined,
+      },
+      {
+        label: "Behind Schedule",
+        description:
+          "Triggered when any task is overdue by more than one day while still active.",
+        current: overdueCount
+          ? `${pluralize(overdueCount, "task")} overdue by more than one day.`
+          : undefined,
+      },
+      {
+        label: "At Risk",
+        description:
+          "Triggered when exactly one task has passed its due date and is still active.",
+        current:
+          behindScheduleCount === 1
+            ? "Currently 1 task past due."
+            : undefined,
+      },
+      {
+        label: "Danger",
+        description:
+          "Triggered when two or more tasks are past due, or when any task extends beyond the project end date.",
+        current:
+          behindScheduleCount >= 2 ||
+          durationOverflowCount > 0 ||
+          beyondProjectCount > 0
+            ? [
+                behindScheduleCount >= 2
+                  ? `${pluralize(behindScheduleCount, "task")} past due`
+                  : null,
+                durationOverflowCount > 0
+                  ? `${pluralize(
+                      durationOverflowCount,
+                      "task"
+                    )} exceed planned duration`
+                  : null,
+                beyondProjectCount > 0
+                  ? `${pluralize(
+                      beyondProjectCount,
+                      "task"
+                    )} finish after the project end date`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" • ")
+            : undefined,
+      },
+      {
+        label: "Completed",
+        description: "Triggered when every task is marked done or complete.",
+        current:
+          totalTasks > 0 && completedTasksCount === totalTasks
+            ? "All tasks complete."
+            : undefined,
+      },
+    ],
+    [
+      totalTasks,
+      completedTasksCount,
+      overdueCount,
+      behindScheduleCount,
+      durationOverflowCount,
+      beyondProjectCount,
+      project.status,
+    ]
+  );
 
   return (
     <Layout title={`Project: ${project.title}`}>
@@ -313,124 +473,256 @@ export default function ProjectOverview() {
           title={project.title}
           category={project.category}
         >
-          <section className="space-y-6">
-            {/* Status */}
-            <div className="flex items-center space-x-3">
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-medium ${statusClass}`}
-              >
-                {statusLabel}
-              </span>
-              <span className="text-gray-600 text-sm">Project Status</span>
-            </div>
+          <div className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Project status
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${statusClass}`}
+                        >
+                          {statusLabel}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowStatusInfo(true)}
+                          className="text-gray-400 transition hover:text-gray-600"
+                          aria-label="View project status rules"
+                        >
+                          <QuestionMarkCircleIcon className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <p className="font-semibold text-gray-900">
+                        {leadLabel}: {project.supervisor?.name || "Unassigned"}
+                      </p>
+                      {project.supervisor?.email && (
+                        <a
+                          href={`mailto:${project.supervisor.email}`}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          {project.supervisor.email}
+                        </a>
+                      )}
+                    </div>
+                  </div>
 
-            {/* Progress timeline */}
-            {project.startDate && project.endDate && (
-              <div>
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>
-                    {new Date(project.startDate).toLocaleDateString()}
-                  </span>
-                  <span>{new Date(project.endDate).toLocaleDateString()}</span>
+                  <div className="mt-6 rounded-lg border border-gray-100 bg-gray-50 p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <p className="font-semibold text-gray-900">
+                        Project timeline
+                      </p>
+                      <span className="text-xs text-gray-500">
+                        {project.startDate && project.endDate
+                          ? `${Math.round(progress)}% elapsed`
+                          : "Add start & end dates"}
+                      </span>
+                    </div>
+                    {project.startDate && project.endDate ? (
+                      <>
+                        <div className="mt-3 h-2 rounded-full bg-white">
+                          <div
+                            className="h-2 rounded-full bg-blue-600"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <div className="mt-2 flex justify-between text-xs text-gray-600">
+                          <span>
+                            Start date: {formatShortDate(project.startDate)}
+                          </span>
+                          <span>
+                            End date: {formatShortDate(project.endDate)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-3 text-xs text-gray-600">
+                        Set start and end dates to track how far through the
+                        project you are.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-6 rounded-lg border border-gray-100 bg-gray-50 p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <p className="font-semibold text-gray-900">
+                        Task completion
+                      </p>
+                      <span className="text-xs text-gray-500">
+                        {tasksLoading
+                          ? "Syncing tasks…"
+                          : totalTasks > 0
+                          ? `${completedTasksCount} of ${totalTasks} tasks`
+                          : "No tasks yet"}
+                      </span>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-white">
+                      <div
+                        className="h-2 rounded-full bg-emerald-500 transition-all"
+                        style={{ width: `${tasksProgressPercent}%` }}
+                      />
+                    </div>
+                    {!tasksLoading && (
+                      <p className="mt-2 text-xs text-gray-600">
+                        {totalTasks > 0
+                          ? `${tasksProgressPercent}% complete`
+                          : "Create your first task to start tracking progress."}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="relative h-3 bg-gray-200 rounded-full">
-                  <div
-                    className="absolute top-0 left-0 h-3 bg-blue-500 rounded-full"
-                    style={{ width: `${progress}%` }}
-                  ></div>
-                  <div
-                    className="absolute top-0 h-3 w-1 bg-black"
-                    style={{
-                      left: `${progress}%`,
-                    }}
-                  ></div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Project summary
+                    </h3>
+                    {project.category && (
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-blue-700">
+                        {project.category}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-3 text-gray-700 whitespace-pre-line">
+                    {project.description || "No description provided."}
+                  </p>
                 </div>
               </div>
-            )}
 
-            {/* Description */}
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-1">Description</h3>
-              <p className="text-gray-600">
-                {project.description || "No description provided."}
-              </p>
-            </div>
+              <div className="space-y-6">
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Team members
+                  </h3>
+                  <ul className="mt-4 space-y-3 text-sm text-gray-700">
+                    <li>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        {leadLabel}
+                      </p>
+                      <p className="font-medium text-gray-900">
+                        {project.supervisor?.name || "Unassigned"}
+                      </p>
+                      {project.supervisor?.email && (
+                        <a
+                          href={`mailto:${project.supervisor.email}`}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          {project.supervisor.email}
+                        </a>
+                      )}
+                    </li>
+                    <li>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Students
+                      </p>
+                      {project.students?.length ? (
+                        <ul className="mt-1 space-y-1">
+                          {project.students.map((student: any) => (
+                            <li key={student.id}>
+                              <span className="font-medium">
+                                {student.name || student.email}
+                              </span>
+                              {student.email && (
+                                <>
+                                  {" "}
+                                  <a
+                                    href={`mailto:${student.email}`}
+                                    className="text-xs text-blue-600 hover:underline"
+                                  >
+                                    {student.email}
+                                  </a>
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1 text-xs text-gray-500">
+                          No students assigned yet.
+                        </p>
+                      )}
+                    </li>
+                    <li>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Collaborators
+                      </p>
+                      {project.collaborators?.length ? (
+                        <ul className="mt-1 space-y-1">
+                          {project.collaborators.map((collaborator: any) => (
+                            <li key={collaborator.id}>
+                              <span className="font-medium">
+                                {collaborator.name || collaborator.email}
+                              </span>
+                              {collaborator.email && (
+                                <>
+                                  {" "}
+                                  <a
+                                    href={`mailto:${collaborator.email}`}
+                                    className="text-xs text-blue-600 hover:underline"
+                                  >
+                                    {collaborator.email}
+                                  </a>
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1 text-xs text-gray-500">
+                          No collaborators added.
+                        </p>
+                      )}
+                    </li>
+                  </ul>
+                </div>
 
-            {/* People */}
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-2">👥 Team</h3>
-              <ul className="text-gray-700 space-y-1">
-                <li>
-                  <strong>{leadLabel}:</strong> {project.supervisor?.name}{" "}
-                  <a
-                    href={`mailto:${project.supervisor?.email}`}
-                    className="text-blue-500"
-                  >
-                    ✉️
-                  </a>
-                </li>
-                {project.students?.length > 0 && (
-                  <li>
-                    <strong>Student(s):</strong>{" "}
-                    {project.students.map((s: any) => (
-                      <span key={s.id}>
-                        {s.name}{" "}
-                        <a href={`mailto:${s.email}`} className="text-blue-500">
-                          ✉️
-                        </a>{" "}
-                      </span>
-                    ))}
-                  </li>
-                )}
-                {project.collaborators?.length > 0 && (
-                  <li>
-                    <strong>Collaborator(s):</strong>{" "}
-                    {project.collaborators.map((c: any) => (
-                      <span key={c.id}>
-                        {c.name}{" "}
-                        <a href={`mailto:${c.email}`} className="text-blue-500">
-                          ✉️
-                        </a>{" "}
-                      </span>
-                    ))}
-                  </li>
-                )}
-              </ul>
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Project actions
+                  </h3>
+                  <div className="mt-4 flex flex-col gap-3">
+                    <button
+                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      onClick={() =>
+                        router.push(`/projects/${resolvedProjectId}/edit`)
+                      }
+                    >
+                      Edit project
+                    </button>
+                    <button
+                      className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-600"
+                      onClick={openUpdateModal}
+                    >
+                      Request update
+                    </button>
+                    {project.isCompleted ? (
+                      <button
+                        className="rounded-md bg-yellow-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-yellow-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                        onClick={reactivateProject}
+                        disabled={isReactivating}
+                      >
+                        {isReactivating ? "Reactivating..." : "Reactivate project"}
+                      </button>
+                    ) : (
+                      <button
+                        className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                        onClick={attemptProjectCompletion}
+                        disabled={isCompleting}
+                      >
+                        {isCompleting ? "Marking..." : "Mark as completed"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-3 pt-4">
-              <button
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                onClick={() => router.push(`/projects/${resolvedProjectId}/edit`)}
-              >
-                Edit Project
-              </button>
-              <button
-                className="px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600"
-                onClick={openUpdateModal}
-              >
-                Request Update
-              </button>
-              {project.isCompleted ? (
-                <button
-                  className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 disabled:opacity-60 disabled:cursor-not-allowed"
-                  onClick={reactivateProject}
-                  disabled={isReactivating}
-                >
-                  {isReactivating ? "Reactivating..." : "Reactivate Project"}
-                </button>
-              ) : (
-                <button
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                  onClick={attemptProjectCompletion}
-                  disabled={isCompleting}
-                >
-                  {isCompleting ? "Marking..." : "Mark as Completed"}
-                </button>
-              )}
-            </div>
-          </section>
+          </div>
         </ProjectLayout>
       </div>
       {showUpdateModal && (
@@ -490,6 +782,37 @@ export default function ProjectOverview() {
                 disabled={isSendingUpdate}
               >
                 {isSendingUpdate ? "Sending..." : "Send Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showStatusInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Project status guide
+            </h3>
+            <p className="mt-1 text-sm text-gray-600">
+              These rules match the automated logic that updates project status.
+            </p>
+            <ul className="mt-4 space-y-4 text-sm text-gray-700">
+              {statusDetails.map((entry) => (
+                <li key={entry.label}>
+                  <p className="font-semibold text-gray-900">{entry.label}</p>
+                  <p className="text-gray-600">{entry.description}</p>
+                  {entry.current && (
+                    <p className="mt-1 text-xs text-blue-600">{entry.current}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowStatusInfo(false)}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Close
               </button>
             </div>
           </div>

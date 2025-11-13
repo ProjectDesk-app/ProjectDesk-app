@@ -37,6 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const formattedTasks = flaggedTasks.map(task => ({
       ...task,
       flaggedByName: task.flaggedBy?.name || "Unknown (N/A)",
+      flaggedAt: task.flaggedAt ? task.flaggedAt.toISOString() : task.updatedAt.toISOString(),
     }));
 
     res.status(200).json({ flaggedTasks: formattedTasks });

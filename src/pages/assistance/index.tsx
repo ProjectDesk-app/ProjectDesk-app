@@ -10,6 +10,14 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export default function AssistanceGallery() {
   const { data: session } = useSession();
   const { data, error } = useSWR("/api/assistance", fetcher);
+  const formatDate = (value?: string | null) =>
+    value
+      ? new Date(value).toLocaleDateString(undefined, {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "Unknown";
 
   if (!session) return <p className="p-6">Please sign in to view this page.</p>;
   const userRole = (session.user as any)?.role;
@@ -59,6 +67,9 @@ export default function AssistanceGallery() {
                     </p>
                     <p className="text-sm text-gray-500">
                       Flagged by: {task.flaggedByName || "Unknown (N/A)"}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Flagged on: {formatDate(task.flaggedAt)}
                     </p>
                   </div>
                   <Link

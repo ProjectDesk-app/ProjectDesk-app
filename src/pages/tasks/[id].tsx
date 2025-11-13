@@ -5,8 +5,8 @@ import { toast, Toaster } from "react-hot-toast";
 import { useState, useEffect } from "react";
 import StatusPill from "@/components/StatusPill";
 import { useSession } from "next-auth/react";
-import { QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+import { QuestionMarkCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { Loader2, LifeBuoy } from "lucide-react";
 import { LoadingState } from "@/components/LoadingState";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -91,6 +91,7 @@ export default function TaskDetail() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusSelect, setStatusSelect] = useState("");
   const [showStatusInfo, setShowStatusInfo] = useState(false);
+  const [flagging, setFlagging] = useState(false);
 
   useEffect(() => {
     if (data?.task?.status) {
@@ -152,6 +153,38 @@ export default function TaskDetail() {
       toast.error("Failed to update task");
     } finally {
       setStatusUpdating(false);
+    }
+  }
+
+  async function toggleFlag() {
+    if (!task?.id) return;
+    setFlagging(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/flag`, { method: "POST" });
+      let payload: any = null;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = null;
+      }
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to update flag");
+      }
+      const nextFlagged =
+        typeof payload?.task?.flagged === "boolean"
+          ? payload.task.flagged
+          : !task.flagged;
+      toast.success(
+        nextFlagged
+          ? "Task flagged for support"
+          : "Task unflagged"
+      );
+      await mutate();
+    } catch (err) {
+      console.error(err);
+      toast.error("Unable to update flag");
+    } finally {
+      setFlagging(false);
     }
   }
 
@@ -279,9 +312,9 @@ export default function TaskDetail() {
 
         {/* Enhanced task info */}
         <div className="flex flex-col gap-2 mb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <h1 className="text-2xl font-semibold">{task?.title || "Untitled Task"}</h1>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <StatusPill status={task?.status} />
               <select
                 className="text-xs border rounded px-2 py-1 bg-gray-100 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 transition disabled:opacity-60"
@@ -306,6 +339,12 @@ export default function TaskDetail() {
               >
                 <QuestionMarkCircleIcon className="w-5 h-5" />
               </button>
+              {task.flagged && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                  <span aria-hidden="true">🚩</span>
+                  Flagged
+                </span>
+              )}
               {statusUpdating && (
                 <span className="ml-1 text-xs text-gray-400 animate-pulse">
                   Saving...
@@ -391,6 +430,21 @@ export default function TaskDetail() {
             {normalizedTaskStatus === "done" ? "Completed" : "Mark as Completed"}
           </button>
           <button
+            onClick={toggleFlag}
+            className={`px-4 py-2 rounded-md border transition ${
+              task.flagged
+                ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                : "border-red-200 text-red-600 hover:bg-red-50"
+            }`}
+            disabled={flagging}
+          >
+            {flagging
+              ? "Updating..."
+              : task.flagged
+              ? "Unflag Task"
+              : "🚩 Flag Task"}
+          </button>
+          <button
             onClick={openEdit}
             className="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition"
           >
@@ -405,9 +459,24 @@ export default function TaskDetail() {
         </div>
 
         {/* Comments section */}
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-2">Comments</h2>
-          <CommentsSection taskId={task?.id} />
+        <div className="mt-8 space-y-3">
+          <h2 className="text-lg font-semibold">Comments</h2>
+          <CommentsSection taskId={task?.id} showFlaggedTip={Boolean(task?.flagged)} />
+        </div>
+
+        <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-5 shadow-sm">
+          <div className="flex items-start gap-3 text-blue-900">
+            <LifeBuoy className="h-6 w-6 text-blue-600" aria-hidden="true" />
+            <div>
+              <p className="text-base font-semibold">Need More Help?</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                <li>Flag tasks when you're stuck or need extra guidance</li>
+                <li>Add detailed notes to the comment box explaining what help you need</li>
+                <li>Update the task status as you make progress</li>
+                <li>Remove flags once issues are resolved</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* Edit Modal */}
@@ -594,7 +663,7 @@ export default function TaskDetail() {
 // CommentsSection component
 import React from "react";
 
-function CommentsSection({ taskId }: { taskId: string | number }) {
+function CommentsSection({ taskId, showFlaggedTip = false }: { taskId: string | number; showFlaggedTip?: boolean }) {
   // Fetch comments using SWR
   const {
     data: commentsData,
@@ -776,6 +845,13 @@ function CommentsSection({ taskId }: { taskId: string | number }) {
               </button>
             </div>
           </form>
+          {showFlaggedTip && (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <ExclamationTriangleIcon className="h-4 w-4" aria-hidden="true" />
+              <span className="font-semibold">Tip:</span>
+              <span>Remember to unflag the task when you no longer need any support.</span>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -34,11 +34,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // ✅ Toggle flag and record who flagged
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
-      data: { 
+      data: {
         flagged: !wasFlagged,
+        flaggedAt: !wasFlagged ? new Date() : null,
         flaggedBy: sessionUserId
+          ? !wasFlagged
+            ? {
+                connect: { id: Number(sessionUserId) },
+              }
+            : {
+                disconnect: true,
+              }
+          : wasFlagged
           ? {
-              connect: { id: Number(sessionUserId) },
+              disconnect: true,
             }
           : undefined,
       },

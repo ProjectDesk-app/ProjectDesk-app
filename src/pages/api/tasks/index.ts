@@ -88,8 +88,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const updated = await prisma.task.update({
       where: { id: Number(id) },
-      data: {
+        data: {
         flagged: typeof flagged === 'boolean' ? flagged : undefined,
+        flaggedAt:
+          typeof flagged === 'boolean'
+            ? flagged
+              ? new Date()
+              : null
+            : undefined,
         status: statusForUpdate,
         dueDate: typeof dueDate === 'string' ? new Date(dueDate) : undefined,
         dependencyTaskId: dependencyTaskId === undefined ? undefined : dependencyTaskId,

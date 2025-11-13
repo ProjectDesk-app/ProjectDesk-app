@@ -128,7 +128,7 @@ export default async function handler(
       // Unflag: set flagged=false, delete notification
       const updated = await prisma.task.update({
         where: { id: Number(id) },
-        data: { flagged: false },
+        data: { flagged: false, flaggedAt: null },
         include: { assignedUsers: true },
       });
       await prisma.notification.deleteMany({
@@ -155,7 +155,7 @@ export default async function handler(
       // Flag: set flagged=true, create notification
       const updated = await prisma.task.update({
         where: { id: Number(id) },
-        data: { flagged: true },
+        data: { flagged: true, flaggedAt: new Date() },
         include: { assignedUsers: true },
       });
       // Actor's name

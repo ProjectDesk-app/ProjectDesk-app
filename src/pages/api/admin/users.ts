@@ -21,6 +21,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email: true,
         role: true,
         emailVerified: true,
+        subscriptionType: true,
+        subscriptionExpiresAt: true,
       },
     });
     return res.status(200).json(users);
@@ -144,6 +146,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         data: {
           flaggedByUserId: null,
           flagged: false,
+          flaggedAt: null,
         },
       });
       await tx.user.updateMany({

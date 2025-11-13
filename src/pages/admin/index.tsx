@@ -17,6 +17,8 @@ type UserRow = {
   email: string;
   role: string;
   emailVerified?: string | null;
+  subscriptionType?: string | null;
+  subscriptionExpiresAt?: string | null;
 };
 
 type SubscriptionMetrics = {
@@ -76,6 +78,7 @@ export default function AdminDashboard() {
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
   const [showRoleInfo, setShowRoleInfo] = useState(false);
+  const [activeSubscriptionList, setActiveSubscriptionList] = useState<null | { label: string; filters: string[]; value?: number | null }>(null);
 
   const formatDate = (value?: string | null) => {
     if (!value) return "—";
@@ -103,23 +106,27 @@ export default function AdminDashboard() {
     () => [
       {
         label: "Active subscribers",
-        value: subscriptionMetrics?.totals.activeSubscribers?.toLocaleString() ?? "—",
+        value: subscriptionMetrics?.totals.activeSubscribers ?? null,
         helper: "Paid & admin-approved supervisors",
+        filters: ["SUBSCRIBED", "ADMIN_APPROVED"],
       },
       {
         label: "Free trials",
-        value: subscriptionMetrics?.totals.freeTrials?.toLocaleString() ?? "—",
+        value: subscriptionMetrics?.totals.freeTrials ?? null,
         helper: "Supervisors still in their trial window",
+        filters: ["FREE_TRIAL"],
       },
       {
         label: "Sponsored accounts",
-        value: subscriptionMetrics?.totals.sponsoredAccounts?.toLocaleString() ?? "—",
+        value: subscriptionMetrics?.totals.sponsoredAccounts ?? null,
         helper: "Students & collaborators linked to supervisors",
+        filters: ["SPONSORED"],
       },
       {
         label: "Cancelled plans",
-        value: subscriptionMetrics?.totals.cancelledAccounts?.toLocaleString() ?? "—",
+        value: subscriptionMetrics?.totals.cancelledAccounts ?? null,
         helper: "Supervisors that churned or paused billing",
+        filters: ["CANCELLED"],
       },
     ],
     [subscriptionMetrics]
@@ -132,6 +139,19 @@ export default function AdminDashboard() {
   }, [users, selectedUser]);
 
   const roles = useMemo(() => Object.keys(ROLE_DESCRIPTIONS), []);
+
+  const subscriptionListUsers = useMemo(() => {
+    if (!activeSubscriptionList || !users) return [];
+    return users
+      .filter(
+        (user) =>
+          user.subscriptionType &&
+          activeSubscriptionList.filters.includes(user.subscriptionType)
+      )
+      .sort((a, b) => a.email.localeCompare(b.email));
+  }, [activeSubscriptionList, users]);
+
+  const isUserDirectoryLoading = !users;
 
   const updateRole = async (userId: number, role: string) => {
     setLoadingRole(userId);
@@ -393,11 +413,21 @@ export default function AdminDashboard() {
             <>
               <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {summaryCards.map((card) => (
-                  <div key={card.label} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                  <button
+                    key={card.label}
+                    type="button"
+                    onClick={() => setActiveSubscriptionList(card)}
+                    className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-left transition hover:border-blue-200 hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  >
                     <p className="text-xs uppercase tracking-wide text-gray-500">{card.label}</p>
-                    <p className="mt-1 text-2xl font-semibold text-gray-900">{card.value}</p>
+                    <p className="mt-1 text-2xl font-semibold text-gray-900">
+                      {typeof card.value === "number" ? card.value.toLocaleString() : "—"}
+                    </p>
                     <p className="text-xs text-gray-600">{card.helper}</p>
-                  </div>
+                    <p className="mt-3 text-xs font-semibold text-blue-600">
+                      View list
+                    </p>
+                  </button>
                 ))}
               </div>
               <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -519,6 +549,62 @@ export default function AdminDashboard() {
           )}
         </section>
       </div>
+      {activeSubscriptionList && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {activeSubscriptionList.label}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {isUserDirectoryLoading
+                    ? "Loading user list…"
+                    : `${subscriptionListUsers.length} user${
+                        subscriptionListUsers.length === 1 ? "" : "s"
+                      }`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveSubscriptionList(null)}
+                className="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-4 max-h-[60vh] overflow-y-auto divide-y divide-gray-100">
+              {isUserDirectoryLoading ? (
+                <p className="py-8 text-center text-sm text-gray-500">
+                  Fetching directory…
+                </p>
+              ) : subscriptionListUsers.length ? (
+                subscriptionListUsers.map((user) => (
+                  <div key={user.id} className="py-3">
+                    <p className="font-medium text-gray-900">
+                      {user.name || user.email}
+                    </p>
+                    <p className="text-sm text-gray-600">{user.email}</p>
+                    <p className="text-xs text-gray-500">
+                      Role: {user.role} • Subscription: {titleCase(user.subscriptionType)}
+                      {user.subscriptionExpiresAt && (
+                        <>
+                          {" "}
+                          • Expires {formatDate(user.subscriptionExpiresAt)}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="py-8 text-center text-sm text-gray-500">
+                  No users match this status right now.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {showRoleInfo && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">

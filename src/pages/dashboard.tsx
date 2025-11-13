@@ -41,6 +41,62 @@ export default function Dashboard() {
   const completedCount = completedProjects.length;
   const canCreateProjects = (session.data?.user as any)?.role === "SUPERVISOR" || (session.data?.user as any)?.role === "ADMIN";
 
+  const normalizeCategory = (value: unknown) =>
+    typeof value === "string" ? value.toLowerCase() : "";
+
+  const normalizeStatus = (value: unknown) =>
+    typeof value === "string" ? value.toLowerCase() : "";
+
+  const studentProjectCount = projects.filter(
+    (p: any) => normalizeCategory(p.category) === "student-project"
+  ).length;
+  const collaborationProjectCount = projects.filter(
+    (p: any) => normalizeCategory(p.category) === "collaboration"
+  ).length;
+
+  const statusBreakdown = activeProjects.reduce(
+    (acc: { onTrack: number; behindSchedule: number; atRisk: number }, project: any) => {
+      const status = normalizeStatus(project.status);
+      if (status === "on track") {
+        acc.onTrack += 1;
+      } else if (status === "behind schedule") {
+        acc.behindSchedule += 1;
+      } else if (["at risk", "danger", "failing"].includes(status)) {
+        acc.atRisk += 1;
+      }
+      return acc;
+    },
+    { onTrack: 0, behindSchedule: 0, atRisk: 0 }
+  );
+
+  const dashboardStats = [
+    {
+      label: "Student projects",
+      value: studentProjectCount,
+      helper: "Across all cohorts",
+    },
+    {
+      label: "Collaborations",
+      value: collaborationProjectCount,
+      helper: "Industry & research",
+    },
+    {
+      label: "On track",
+      value: statusBreakdown.onTrack,
+      helper: "Healthy timelines",
+    },
+    {
+      label: "Behind schedule",
+      value: statusBreakdown.behindSchedule,
+      helper: "Need follow up",
+    },
+    {
+      label: "At risk",
+      value: statusBreakdown.atRisk,
+      helper: "Escalate soon",
+    },
+  ];
+
   const renderProject = (p: any) => {
     const progress = (() => {
       if (!p.startDate || !p.endDate) return 0;
@@ -166,6 +222,23 @@ export default function Dashboard() {
             <option value="collaboration">Collaborations</option>
           </select>
         </label>
+      </div>
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {dashboardStats.map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+          >
+            <p className="text-xs uppercase tracking-wide text-gray-500">
+              {stat.label}
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
+              {stat.value.toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-600">{stat.helper}</p>
+          </div>
+        ))}
       </div>
 
       <h2 className="text-xl font-semibold mb-3">

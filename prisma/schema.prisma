@@ -85,6 +85,7 @@ model Task {
   dueDate          DateTime?
   dependencyTaskId Int?
   flagged          Boolean        @default(false)
+  flaggedAt        DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   assigneeId       Int?
