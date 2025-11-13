@@ -374,90 +374,77 @@ export default function ProjectOverview() {
   const durationOverflowCount = durationOverflow.length;
   const beyondProjectCount = tasksBeyondProject.length;
 
-  const statusDetails = useMemo(
-    () => [
-      {
-        label: "Not Started",
-        description: "Triggered when the project has no tasks yet.",
-        current:
-          totalTasks === 0
-            ? "Currently true — add your first task to begin tracking."
-            : undefined,
-      },
-      {
-        label: "On Track",
-        description:
-          "Default state when there are no overdue tasks or schedule risks.",
-        current:
-          project.status === "On Track"
-            ? "Currently selected status."
-            : undefined,
-      },
-      {
-        label: "Behind Schedule",
-        description:
-          "Triggered when any task is overdue by more than one day while still active.",
-        current: overdueCount
-          ? `${pluralize(overdueCount, "task")} overdue by more than one day.`
+  const statusDetails = [
+    {
+      label: "Not Started",
+      description: "Triggered when the project has no tasks yet.",
+      current:
+        totalTasks === 0
+          ? "Currently true — add your first task to begin tracking."
           : undefined,
-      },
-      {
-        label: "At Risk",
-        description:
-          "Triggered when exactly one task has passed its due date and is still active.",
-        current:
-          behindScheduleCount === 1
-            ? "Currently 1 task past due."
-            : undefined,
-      },
-      {
-        label: "Danger",
-        description:
-          "Triggered when two or more tasks are past due, or when any task extends beyond the project end date.",
-        current:
-          behindScheduleCount >= 2 ||
-          durationOverflowCount > 0 ||
-          beyondProjectCount > 0
-            ? [
-                behindScheduleCount >= 2
-                  ? `${pluralize(behindScheduleCount, "task")} past due`
-                  : null,
-                durationOverflowCount > 0
-                  ? `${pluralize(
-                      durationOverflowCount,
-                      "task"
-                    )} exceed planned duration`
-                  : null,
-                beyondProjectCount > 0
-                  ? `${pluralize(
-                      beyondProjectCount,
-                      "task"
-                    )} finish after the project end date`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" • ")
-            : undefined,
-      },
-      {
-        label: "Completed",
-        description: "Triggered when every task is marked done or complete.",
-        current:
-          totalTasks > 0 && completedTasksCount === totalTasks
-            ? "All tasks complete."
-            : undefined,
-      },
-    ],
-    [
-      totalTasks,
-      completedTasksCount,
-      overdueCount,
-      behindScheduleCount,
-      durationOverflowCount,
-      beyondProjectCount,
-      project.status,
-    ]
-  );
+    },
+    {
+      label: "On Track",
+      description:
+        "Default state when there are no overdue tasks or schedule risks.",
+      current:
+        project.status === "On Track"
+          ? "Currently selected status."
+          : undefined,
+    },
+    {
+      label: "Behind Schedule",
+      description:
+        "Triggered when any task is overdue by more than one day while still active.",
+      current: overdueCount
+        ? `${pluralize(overdueCount, "task")} overdue by more than one day.`
+        : undefined,
+    },
+    {
+      label: "At Risk",
+      description:
+        "Triggered when exactly one task has passed its due date and is still active.",
+      current:
+        behindScheduleCount === 1 ? "Currently 1 task past due." : undefined,
+    },
+    {
+      label: "Danger",
+      description:
+        "Triggered when two or more tasks are past due, or when any task extends beyond the project end date.",
+      current:
+        behindScheduleCount >= 2 ||
+        durationOverflowCount > 0 ||
+        beyondProjectCount > 0
+          ? [
+              behindScheduleCount >= 2
+                ? `${pluralize(behindScheduleCount, "task")} past due`
+                : null,
+              durationOverflowCount > 0
+                ? `${pluralize(
+                    durationOverflowCount,
+                    "task"
+                  )} exceed planned duration`
+                : null,
+              beyondProjectCount > 0
+                ? `${pluralize(
+                    beyondProjectCount,
+                    "task"
+                  )} finish after the project end date`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" • ")
+          : undefined,
+    },
+    {
+      label: "Completed",
+      description: "Triggered when every task is marked done or complete.",
+      current:
+        totalTasks > 0 && completedTasksCount === totalTasks
+          ? "All tasks complete."
+          : undefined,
+    },
+  ];
 
   return (
     <Layout title={`Project: ${project.title}`}>
