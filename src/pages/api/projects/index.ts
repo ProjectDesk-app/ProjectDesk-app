@@ -8,6 +8,7 @@ import {
   SUPERVISOR_SPONSOR_LIMIT,
   canSponsorAccounts,
 } from "@/lib/subscriptions";
+import { updateProjectStatus } from "@/lib/updateProjectStatus";
 
 type MemberInput = {
   id?: number;
@@ -233,6 +234,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!projects || !Array.isArray(projects)) {
       return res.status(200).json([]);
     }
+
+    await Promise.all(
+      projects.map(async (project, index) => {
+        if (project.isCompleted) return;
+        const updated = await updateProjectStatus(project.id);
+        if (updated?.status) {
+          projects[index].status = updated.status;
+        }
+      })
+    );
 
     return res.status(200).json(projects);
   } catch (error) {
