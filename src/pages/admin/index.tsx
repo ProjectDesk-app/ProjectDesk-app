@@ -19,6 +19,12 @@ type UserRow = {
   emailVerified?: string | null;
   subscriptionType?: string | null;
   subscriptionExpiresAt?: string | null;
+  sponsor?: {
+    id: number;
+    name: string | null;
+    email: string;
+    subscriptionType?: string | null;
+  } | null;
 };
 
 type SubscriptionMetrics = {
@@ -177,6 +183,7 @@ export default function AdminDashboard() {
   };
 
   const updateSubscription = async (userId: number, subscriptionType: string) => {
+    if (!subscriptionType) return;
     setLoadingSubscription(userId);
     try {
       const res = await fetch("/api/admin/users", {
@@ -250,7 +257,16 @@ export default function AdminDashboard() {
               if (full) {
                 setSelectedUser(full);
               } else {
-                setSelectedUser({ ...option, emailVerified: null });
+                setSelectedUser({
+                  id: option.id,
+                  name: option.name,
+                  email: option.email,
+                  role: option.role,
+                  emailVerified: null,
+                  subscriptionType: null,
+                  subscriptionExpiresAt: null,
+                  sponsor: null,
+                });
               }
             }}
           />
@@ -303,6 +319,9 @@ export default function AdminDashboard() {
                     onChange={(e) => updateSubscription(selectedUser.id, e.target.value)}
                     disabled={loadingSubscription === selectedUser.id}
                   >
+                    <option value="" disabled>
+                      Select subscription status
+                    </option>
                     {subscriptionOptions.map((type) => (
                       <option key={type} value={type}>
                         {titleCase(type)}
@@ -404,6 +423,39 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
+                {selectedUser.subscriptionType === "SPONSORED" && (
+                  <div className="sm:col-span-2 rounded-md border border-emerald-200 bg-white px-3 py-2">
+                    <p className="text-xs font-semibold text-emerald-900">Sponsor details</p>
+                    {selectedUser.sponsor ? (
+                      <>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {selectedUser.sponsor.name || selectedUser.sponsor.email}
+                        </p>
+                        <p className="text-xs text-gray-600">{selectedUser.sponsor.email}</p>
+                        <p className="text-xs text-gray-500">
+                          Status: {titleCase(selectedUser.sponsor.subscriptionType)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!selectedUser.sponsor?.id) return;
+                            const sponsorRecord = users?.find((user) => user.id === selectedUser.sponsor?.id);
+                            if (sponsorRecord) {
+                              setSelectedUser(sponsorRecord);
+                            } else {
+                              toast.error("Sponsor record not found in directory");
+                            }
+                          }}
+                          className="mt-2 inline-flex items-center rounded-md border border-emerald-300 px-3 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+                        >
+                          View sponsor account
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-500">No linked sponsor was found for this account.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -648,6 +700,13 @@ export default function AdminDashboard() {
                         </>
                       )}
                     </p>
+                    {user.subscriptionType === "SPONSORED" && (
+                      <p className="text-xs text-gray-500">
+                        Sponsored by{" "}
+                        {user.sponsor?.name || user.sponsor?.email || "Unknown sponsor"}
+                        {user.sponsor?.email && user.sponsor?.name ? ` (${user.sponsor.email})` : ""}
+                      </p>
+                    )}
                   </div>
                 ))
               ) : (

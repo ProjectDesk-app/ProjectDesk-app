@@ -23,6 +23,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         emailVerified: true,
         subscriptionType: true,
         subscriptionExpiresAt: true,
+        sponsor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            subscriptionType: true,
+          },
+        },
       },
     });
     return res.status(200).json(users);
