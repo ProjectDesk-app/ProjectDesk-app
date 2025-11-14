@@ -29,11 +29,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "PUT") {
-    const { userId, role, name, email } = req.body as {
+    const { userId, role, name, email, subscriptionType } = req.body as {
       userId?: number;
       role?: string;
       name?: string | null;
       email?: string;
+      subscriptionType?: SubscriptionType;
     };
     if (!userId) {
       return res.status(400).json({ error: "userId required" });
@@ -52,6 +53,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (email) {
       data.email = email.trim().toLowerCase();
+    }
+
+    if (subscriptionType) {
+      const allowedSubscriptionTypes = Object.values(SubscriptionType) as SubscriptionType[];
+      if (!allowedSubscriptionTypes.includes(subscriptionType)) {
+        return res.status(400).json({ error: "Invalid subscription type" });
+      }
+      data.subscriptionType = subscriptionType;
+      if (subscriptionType === SubscriptionType.ADMIN_APPROVED) {
+        data.subscriptionExpiresAt = null;
+      }
     }
 
     if (Object.keys(data).length === 0) {
