@@ -80,6 +80,10 @@ export default function AdminDashboard() {
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
   const [showRoleInfo, setShowRoleInfo] = useState(false);
   const [activeSubscriptionList, setActiveSubscriptionList] = useState<null | { label: string; filters: string[]; value?: number | null }>(null);
+  const subscriptionOptions = useMemo(
+    () => ["ADMIN_APPROVED", "SUBSCRIBED", "FREE_TRIAL", "SPONSORED", "CANCELLED"],
+    []
+  );
 
   const formatDate = (value?: string | null) => {
     if (!value) return "—";
@@ -293,26 +297,26 @@ export default function AdminDashboard() {
                 </label>
                 <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
                   <span>Subscription</span>
-                  <div className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900">
-                    {titleCase(selectedUser.subscriptionType)}
-                  </div>
+                  <select
+                    className="rounded-md border border-gray-300 px-2 py-1 text-sm font-semibold text-gray-900"
+                    value={selectedUser.subscriptionType ?? ""}
+                    onChange={(e) => updateSubscription(selectedUser.id, e.target.value)}
+                    disabled={loadingSubscription === selectedUser.id}
+                  >
+                    {subscriptionOptions.map((type) => (
+                      <option key={type} value={type}>
+                        {titleCase(type)}
+                      </option>
+                    ))}
+                  </select>
                   {selectedUser.subscriptionExpiresAt && (
                     <span className="text-[11px] font-normal text-gray-500">
                       Expires {formatDate(selectedUser.subscriptionExpiresAt)}
                     </span>
                   )}
-                  {selectedUser.subscriptionType === "ADMIN_APPROVED" ? (
-                    <span className="text-[11px] font-semibold text-green-600">Admin approved access</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => updateSubscription(selectedUser.id, "ADMIN_APPROVED")}
-                      disabled={loadingSubscription === selectedUser.id}
-                      className="mt-1 inline-flex items-center justify-center rounded-md border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
-                    >
-                      {loadingSubscription === selectedUser.id ? "Saving…" : "Mark admin approved"}
-                    </button>
-                  )}
+                  <span className="text-[11px] font-normal text-gray-500">
+                    Toggle admin-approved access or revert to other billing states here.
+                  </span>
                 </label>
                 <div className="flex flex-col gap-1 sm:col-span-2">
                   <span className="text-xs font-semibold text-gray-600">Actions</span>
