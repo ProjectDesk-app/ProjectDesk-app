@@ -16,6 +16,7 @@ import { EditNameModal } from "@/components/account/EditNameModal";
 import { ChangeEmailModal } from "@/components/account/ChangeEmailModal";
 import { ChangePasswordModal } from "@/components/account/ChangePasswordModal";
 import { SupportTicketModal } from "@/components/account/SupportTicketModal";
+import { FeedbackWidget } from "@/components/account/FeedbackWidget";
 import { canSponsorAccounts } from "@/lib/subscriptions";
 import type { SubscriptionType } from "@prisma/client";
 
@@ -522,6 +523,7 @@ export default function Layout({
             profile={accountProfile}
             sessionUser={session.user}
           />
+          <FeedbackWidget profile={accountProfile} sessionUser={session.user} />
         </>
       )}
     </div>
