@@ -17,6 +17,17 @@ async function getTaskById(taskId: string) {
       },
       assignee: true,
       assignedUsers: true,
+      connectedFiles: {
+        include: {
+          addedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
     },
   });
 }

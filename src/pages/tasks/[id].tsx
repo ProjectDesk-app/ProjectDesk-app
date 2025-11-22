@@ -5,7 +5,7 @@ import { toast, Toaster } from "react-hot-toast";
 import { useState, useEffect } from "react";
 import StatusPill from "@/components/StatusPill";
 import { useSession } from "next-auth/react";
-import { QuestionMarkCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { QuestionMarkCircleIcon, ExclamationTriangleIcon, LinkIcon } from "@heroicons/react/24/outline";
 import { Loader2, LifeBuoy } from "lucide-react";
 import { LoadingState } from "@/components/LoadingState";
 
@@ -85,6 +85,14 @@ export default function TaskDetail() {
     fetcher
   );
 
+  const task = data?.task;
+  const projectId = task?.projectId;
+
+  const { data: filesData, mutate: mutateFiles } = useSWR(
+    projectId ? `/api/projects/${projectId}/files` : null,
+    fetcher
+  );
+
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<any>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -92,6 +100,8 @@ export default function TaskDetail() {
   const [statusSelect, setStatusSelect] = useState("");
   const [showStatusInfo, setShowStatusInfo] = useState(false);
   const [flagging, setFlagging] = useState(false);
+  const [showFileModal, setShowFileModal] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
 
   useEffect(() => {
     if (data?.task?.status) {
@@ -116,7 +126,6 @@ export default function TaskDetail() {
       </Layout>
     );
 
-  const task = data.task;
   const project = data.project || task?.project || null;
   const assignedUsers = task?.assignedUsers || [];
   const normalizedTaskStatus =
@@ -304,6 +313,41 @@ export default function TaskDetail() {
     setStatusUpdating(false);
   }
 
+  async function handleSaveFileConnections() {
+    if (!task?.id) return;
+    try {
+      // Update each selected file to connect it to this task
+      const projectFiles = filesData?.files || [];
+      
+      // Update files that should be connected
+      for (const file of projectFiles) {
+        const shouldBeConnected = selectedFiles.includes(file.id);
+        const isCurrentlyConnected = task.connectedFiles?.some((f: any) => f.id === file.id);
+        
+        if (shouldBeConnected !== isCurrentlyConnected) {
+          const currentTaskIds = file.connectedTasks?.map((t: any) => t.id) || [];
+          const newTaskIds = shouldBeConnected
+            ? [...currentTaskIds, task.id]
+            : currentTaskIds.filter((tid: number) => tid !== task.id);
+          
+          await fetch(`/api/files/${file.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ taskIds: newTaskIds }),
+          });
+        }
+      }
+      
+      toast.success("File connections updated!");
+      setShowFileModal(false);
+      await mutate();
+      await mutateFiles();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update file connections");
+    }
+  }
+
   return (
     <Layout title={task?.title || "Task"}>
       <div className="max-w-2xl mx-auto bg-white p-6 rounded-md shadow">
@@ -456,6 +500,60 @@ export default function TaskDetail() {
           >
             Back to Tasks
           </button>
+        </div>
+
+        {/* Connected Files Section */}
+        <div className="mt-8 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Connected Files</h2>
+            <button
+              onClick={() => {
+                setSelectedFiles(task?.connectedFiles?.map((f: any) => f.id) || []);
+                setShowFileModal(true);
+              }}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Manage Files
+            </button>
+          </div>
+          {task?.connectedFiles && task.connectedFiles.length > 0 ? (
+            <div className="space-y-2">
+              {task.connectedFiles.map((file: any) => (
+                <div
+                  key={file.id}
+                  className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50"
+                >
+                  <LinkIcon className="h-5 w-5 flex-shrink-0 text-gray-400" />
+                  <div className="flex-1">
+                    <a
+                      href={file.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      {file.fileName}
+                    </a>
+                    <p className="text-xs text-gray-500">
+                      Added by {file.addedBy?.name || file.addedBy?.email || "Unknown"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">
+              No files connected to this task.{" "}
+              <button
+                onClick={() => {
+                  setSelectedFiles([]);
+                  setShowFileModal(true);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                Connect files
+              </button>
+            </p>
+          )}
         </div>
 
         {/* Comments section */}
@@ -655,6 +753,75 @@ export default function TaskDetail() {
     </div>
   </div>
 )}
+        
+        {/* File Management Modal */}
+        {showFileModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Connected Files</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Select files from this project to connect to this task.
+              </p>
+              {filesData?.files?.length > 0 ? (
+                <div className="mb-4 max-h-80 overflow-y-auto space-y-2">
+                  {filesData.files.map((file: any) => (
+                    <label
+                      key={file.id}
+                      className="flex items-start gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFiles.includes(file.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFiles([...selectedFiles, file.id]);
+                          } else {
+                            setSelectedFiles(selectedFiles.filter((id) => id !== file.id));
+                          }
+                        }}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{file.fileName}</p>
+                        <p className="text-xs text-gray-500">
+                          Added by {file.addedBy?.name || file.addedBy?.email || "Unknown"}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="mb-4 text-sm text-gray-500">
+                  No files available in this project.{" "}
+                  <button
+                    onClick={() => {
+                      setShowFileModal(false);
+                      router.push(`/projects/${projectId}/files`);
+                    }}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    Add files to the project
+                  </button>
+                </p>
+              )}
+              <div className="flex gap-3 justify-end pt-4">
+                <button
+                  onClick={() => setShowFileModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveFileConnections}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Toaster position="bottom-right" />
       </div>
     </Layout>
