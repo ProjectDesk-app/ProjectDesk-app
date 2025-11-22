@@ -568,7 +568,7 @@ export default function TaskDetail() {
             <div>
               <p className="text-base font-semibold">Need More Help?</p>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                <li>Flag tasks when you're stuck or need extra guidance</li>
+                <li>Flag tasks when you&apos;re stuck or need extra guidance</li>
                 <li>Add detailed notes to the comment box explaining what help you need</li>
                 <li>Update the task status as you make progress</li>
                 <li>Remove flags once issues are resolved</li>
