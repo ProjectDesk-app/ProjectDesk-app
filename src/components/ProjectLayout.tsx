@@ -11,6 +11,7 @@ type ProjectLayoutProps = {
 const tabs = [
   { name: 'Overview', href: (projectId: string) => `/projects/${projectId}` },
   { name: 'Tasks', href: (projectId: string) => `/projects/${projectId}/tasks` },
+  { name: 'Files', href: (projectId: string) => `/projects/${projectId}/files` },
   { name: 'Gantt Chart', href: (projectId: string) => `/projects/${projectId}/gantt` },
 ];
 
