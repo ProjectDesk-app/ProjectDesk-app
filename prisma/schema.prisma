@@ -39,6 +39,7 @@ model User {
   collaboratorProjects  Project[]       @relation("ProjectCollaborators")
   studentProjects       Project[]       @relation("ProjectStudents")
   multiAssignedTasks    Task[]          @relation("TaskAssignments")
+  projectUpdates        ProjectUpdate[]
   emailVerifications    EmailVerification[]
   passwordResets        PasswordResetToken[]
   goCardlessRedirectFlows GoCardlessRedirectFlow[]
@@ -61,6 +62,7 @@ model Project {
   supervisor    User            @relation("ProjectSupervisor", fields: [supervisorId], references: [id])
   members       ProjectMember[]
   tasks         Task[]
+  updates       ProjectUpdate[]
   collaborators User[]          @relation("ProjectCollaborators")
   students      User[]          @relation("ProjectStudents")
 }
@@ -191,6 +193,22 @@ model TaskTemplate {
   title       String
   duration    Int?
   taskSet     TaskSet  @relation("TaskSetTemplates", fields: [taskSetId], references: [id], onDelete: Cascade)
+}
+
+model ProjectUpdate {
+  id          Int      @id @default(autoincrement())
+  projectId   Int
+  userId      Int
+  title       String
+  description String?
+  notifyAll   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([projectId])
+  @@index([userId])
+  @@map("project_updates")
 }
 
 enum UserRole {

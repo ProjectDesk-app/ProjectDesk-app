@@ -6,7 +6,11 @@ import { toast, Toaster } from "react-hot-toast";
 import { useMemo, useState } from "react";
 import { LoadingState } from "@/components/LoadingState";
 import { getProjectLeadLabel } from "@/lib/projectLabels";
-import { QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
+import {
+  ExclamationTriangleIcon,
+  PlusIcon,
+  QuestionMarkCircleIcon,
+} from "@heroicons/react/24/outline";
 
 type PendingTask = {
   id: number;
@@ -43,6 +47,15 @@ export default function ProjectOverview() {
     projectId ? `/api/projects/${projectId}/tasks` : null,
     fetcher
   );
+  const {
+    data: updatesData,
+    error: updatesError,
+    isLoading: updatesLoading,
+    mutate: mutateUpdates,
+  } = useSWR(
+    projectId ? `/api/projects/${projectId}/updates` : null,
+    fetcher
+  );
 
   const [pendingTasks, setPendingTasks] = useState<PendingTask[] | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -52,6 +65,11 @@ export default function ProjectOverview() {
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [isSendingUpdate, setIsSendingUpdate] = useState(false);
   const [showStatusInfo, setShowStatusInfo] = useState(false);
+  const [showAddUpdateModal, setShowAddUpdateModal] = useState(false);
+  const [updateTitle, setUpdateTitle] = useState("");
+  const [updateDescription, setUpdateDescription] = useState("");
+  const [notifyAllMembers, setNotifyAllMembers] = useState(true);
+  const [isSavingUpdate, setIsSavingUpdate] = useState(false);
 
   const formatTaskStatus = (status: string) =>
     status
@@ -71,6 +89,17 @@ export default function ProjectOverview() {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+    });
+  };
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return "Unknown";
+    return new Date(value).toLocaleString(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -270,6 +299,66 @@ export default function ProjectOverview() {
       );
     } finally {
       setIsReactivating(false);
+    }
+  };
+
+  const updates = Array.isArray(updatesData?.updates)
+    ? updatesData.updates
+    : Array.isArray(updatesData)
+    ? updatesData
+    : [];
+
+  const openAddUpdateModal = () => {
+    setUpdateTitle("");
+    setUpdateDescription("");
+    setNotifyAllMembers(true);
+    setShowAddUpdateModal(true);
+  };
+
+  const submitProjectUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValidProjectId(projectId)) {
+      toast.error("Invalid project ID.");
+      return;
+    }
+    if (!updateTitle.trim()) {
+      toast.error("Add a title for this update.");
+      return;
+    }
+
+    setIsSavingUpdate(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/updates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: updateTitle.trim(),
+          description: updateDescription.trim(),
+          notifyAll: notifyAllMembers,
+        }),
+      });
+
+      let payload: any = null;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = null;
+      }
+
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to post update");
+      }
+
+      toast.success("Project update added");
+      setShowAddUpdateModal(false);
+      setUpdateTitle("");
+      setUpdateDescription("");
+      if (mutateUpdates) await mutateUpdates();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Could not add update");
+    } finally {
+      setIsSavingUpdate(false);
     }
   };
 
@@ -567,6 +656,78 @@ export default function ProjectOverview() {
                     {project.description || "No description provided."}
                   </p>
                 </div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Project updates
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Share milestone wins and key progress notes with the team.
+                      </p>
+                    </div>
+                    <button
+                      className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      onClick={openAddUpdateModal}
+                    >
+                      <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                      Add update
+                    </button>
+                  </div>
+
+                  <div className="mt-4 flex items-start gap-3 rounded-md border border-dashed border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                    <ExclamationTriangleIcon className="h-5 w-5 text-blue-500" aria-hidden="true" />
+                    <div>
+                      <p className="font-semibold">Use this space for project updates</p>
+                      <p className="text-xs text-blue-800">
+                        Let everyone know about milestones like “Ethics approval granted” or “First draft completed”.
+                      </p>
+                    </div>
+                  </div>
+
+                  {updatesLoading && (
+                    <p className="mt-4 text-sm text-blue-700">Loading updates…</p>
+                  )}
+                  {updatesError && (
+                    <p className="mt-4 text-sm text-red-600">Failed to load updates.</p>
+                  )}
+                  {!updatesLoading && !updatesError && (
+                    <>
+                      {updates.length === 0 ? (
+                        <p className="mt-4 text-sm text-gray-500">
+                          No updates yet. Kick things off with a quick milestone note.
+                        </p>
+                      ) : (
+                        <ul className="mt-4 space-y-4">
+                          {updates.map((entry: any) => (
+                            <li
+                              key={entry.id}
+                              className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 shadow-sm"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {entry.title}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {entry.user?.name ||
+                                      entry.user?.email ||
+                                      "Unknown"}{" "}
+                                    • {formatDateTime(entry.createdAt)}
+                                  </p>
+                                </div>
+                              </div>
+                              <p className="mt-2 text-sm text-gray-700 whitespace-pre-line">
+                                {entry.description || "No additional details provided."}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-6">
@@ -699,6 +860,82 @@ export default function ProjectOverview() {
           </div>
         </ProjectLayout>
       </div>
+      {showAddUpdateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-lg rounded-md bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Post project update
+            </h3>
+            <p className="mt-1 text-sm text-gray-600">
+              Summarize the latest milestone or win so the whole team stays in the loop.
+            </p>
+            <form onSubmit={submitProjectUpdate} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-800">
+                  Update title
+                </label>
+                <input
+                  type="text"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="Ethics approval granted"
+                  value={updateTitle}
+                  onChange={(e) => setUpdateTitle(e.target.value)}
+                  maxLength={120}
+                  required
+                  disabled={isSavingUpdate}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-800">
+                  Update description
+                </label>
+                <textarea
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+                  rows={4}
+                  placeholder="Add any context the team should know…"
+                  value={updateDescription}
+                  onChange={(e) => setUpdateDescription(e.target.value)}
+                  disabled={isSavingUpdate}
+                />
+              </div>
+              <label className="flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={notifyAllMembers}
+                  onChange={(e) => setNotifyAllMembers(e.target.checked)}
+                  disabled={isSavingUpdate}
+                />
+                <span>
+                  <span className="font-medium text-gray-900">
+                    Email all team members
+                  </span>
+                  <span className="block text-xs text-gray-600">
+                    Send an email to students, collaborators, and supervisors when this update is posted.
+                  </span>
+                </span>
+              </label>
+              <div className="flex flex-col sm:flex-row sm:justify-end sm:space-x-3 gap-3">
+                <button
+                  type="button"
+                  className="w-full sm:w-auto rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={() => setShowAddUpdateModal(false)}
+                  disabled={isSavingUpdate}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={isSavingUpdate}
+                >
+                  {isSavingUpdate ? "Posting..." : "Add update"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {showUpdateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-md bg-white p-6 shadow-xl">
