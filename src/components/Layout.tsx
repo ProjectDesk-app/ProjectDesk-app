@@ -141,6 +141,12 @@ export default function Layout({
     (accountProfile.role === "STUDENT" || accountProfile.role === "COLLABORATOR") &&
     accountProfile.sponsorSubscriptionInactive;
 
+  const trialExpired =
+    accountProfile?.role === "SUPERVISOR" &&
+    accountProfile.subscriptionType === "FREE_TRIAL" &&
+    accountProfile.subscriptionExpiresAt &&
+    new Date(accountProfile.subscriptionExpiresAt).getTime() < Date.now();
+
   const supervisorSubscriptionCancelled = Boolean(
     (accountProfile?.role === "SUPERVISOR" && accountProfile?.subscriptionType === "CANCELLED") ||
       ((session?.user as any)?.role === "SUPERVISOR" &&
@@ -364,6 +370,52 @@ export default function Layout({
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
 
       <Toaster position="bottom-right" />
+
+      {trialExpired && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 text-left shadow-xl">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-gray-900">Free trial ended</h2>
+              <p className="text-sm text-gray-700">
+                Your ProjectDesk free trial has ended, so access is paused. Start a subscription to keep sponsoring collaborators
+                and managing projects.
+              </p>
+            </div>
+            <div className="space-y-2 rounded-md bg-blue-50 p-4 text-sm text-blue-900">
+              <p className="font-semibold">How to regain access</p>
+              <p>Continue to checkout to begin your paid subscription. Once active, your workspace unlocks automatically.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleManageSubscription}
+                disabled={managingSubscription}
+                className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {managingSubscription ? "Opening checkout..." : "Start subscription"}
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Sign out
+              </button>
+              <a
+                href="https://projectdesk.app/contact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50"
+              >
+                Contact support
+              </a>
+            </div>
+            <p className="text-xs text-gray-500">
+              Need more time? Reach out to the ProjectDesk team about extending your trial before subscribing.
+            </p>
+          </div>
+        </div>
+      )}
 
       {supervisorSubscriptionCancelled && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
