@@ -12,12 +12,16 @@ const REQUIRED_ENV_VARS = [
   "GOCARDLESS_SUBSCRIPTION_INTERVAL_UNIT",
 ];
 
+const GC_ID_PATTERN = /^[A-Za-z0-9_-]{5,64}$/;
+
 const ensureBillingEnv = () => {
   const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
   if (missing.length) {
     throw new Error(`Missing GoCardless configuration: ${missing.join(", ")}`);
   }
 };
+
+const isSafeGoCardlessId = (value: string) => GC_ID_PATTERN.test(value);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -33,13 +37,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "Access denied" });
   }
 
-  const { flowId } = req.body as { flowId?: string };
-  if (!flowId) {
-    return res.status(400).json({ error: "redirect_flow_id missing" });
+  const rawFlowId = typeof req.body?.flowId === "string" ? req.body.flowId.trim() : "";
+  if (!isSafeGoCardlessId(rawFlowId)) {
+    return res.status(400).json({ error: "Invalid or missing redirect_flow_id" });
   }
+  const normalizedFlowId = rawFlowId;
 
   const record = await prisma.goCardlessRedirectFlow.findUnique({
-    where: { flowId },
+    where: { flowId: normalizedFlowId },
   });
   if (!record || record.userId !== session.user.id) {
     return res.status(404).json({ error: "Redirect flow not found" });
@@ -65,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const sessionToken = record.sessionToken;
 
   try {
-    const redirectFlow = await completeRedirectFlow(flowId, sessionToken);
+    const redirectFlow = await completeRedirectFlow(normalizedFlowId, sessionToken);
     const mandateId = redirectFlow.links?.mandate;
     const customerId = redirectFlow.links?.customer;
 
