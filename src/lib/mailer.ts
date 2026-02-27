@@ -1,5 +1,9 @@
+import { prisma } from "@/lib/prisma";
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_CAPTURE = /([^\s<]+@[^\s>]+)/;
+const MAX_PREVIEW_LENGTH = 1200;
+const MAX_ERROR_LENGTH = 2000;
 
 function extractEmail(address?: string | null) {
   if (!address) return null;
@@ -85,9 +89,70 @@ function buildHtmlTemplate(subject: string, message: string) {
 `;
 }
 
+function truncate(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}…`;
+}
+
+function buildPreview(message: string) {
+  const normalized = message
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .trim();
+  return truncate(normalized, MAX_PREVIEW_LENGTH);
+}
+
+function extractMailgunMessageId(responseBody: string) {
+  if (!responseBody) return null;
+  try {
+    const parsed = JSON.parse(responseBody) as { id?: unknown };
+    if (typeof parsed.id === "string" && parsed.id.trim()) {
+      return parsed.id.trim();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function persistEmailLog(input: {
+  to: string;
+  subject: string;
+  message: string;
+  status: "SENT" | "FAILED" | "MOCK";
+  provider?: string | null;
+  providerMessageId?: string | null;
+  error?: string | null;
+}) {
+  try {
+    await prisma.emailLog.create({
+      data: {
+        to: input.to,
+        subject: truncate(input.subject, 300),
+        messagePreview: buildPreview(input.message),
+        status: input.status,
+        provider: input.provider ?? null,
+        providerMessageId: input.providerMessageId ?? null,
+        error: input.error ? truncate(input.error, MAX_ERROR_LENGTH) : null,
+      },
+    });
+  } catch (error) {
+    // Logging should never block delivery attempts.
+    console.error("[Email] Failed to persist email log:", error);
+  }
+}
+
 export async function sendEmail(to: string, subject: string, message: string) {
   const normalizedRecipient = extractEmail(to);
   if (!normalizedRecipient || !EMAIL_REGEX.test(normalizedRecipient)) {
+    await persistEmailLog({
+      to: to || "(empty)",
+      subject: subject || "(empty)",
+      message: message || "",
+      status: "FAILED",
+      error: `Invalid recipient email address: ${to}`,
+    });
     throw new Error(`Invalid recipient email address: ${to}`);
   }
 
@@ -110,6 +175,14 @@ export async function sendEmail(to: string, subject: string, message: string) {
       );
     }
     logMockEmail(normalizedRecipient, subject, message);
+    await persistEmailLog({
+      to: normalizedRecipient,
+      subject,
+      message,
+      status: "MOCK",
+      provider: "mock",
+      error: missingConfig ? "Mailgun config missing; message not sent to provider." : null,
+    });
     return;
   }
 
@@ -133,12 +206,29 @@ export async function sendEmail(to: string, subject: string, message: string) {
       body: body.toString(),
     });
 
+    const responseBody = await response.text().catch(() => "");
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "Unknown error");
-      throw new Error(errorText);
+      throw new Error(responseBody || "Unknown provider error");
     }
+
+    await persistEmailLog({
+      to: normalizedRecipient,
+      subject,
+      message,
+      status: "SENT",
+      provider: "mailgun",
+      providerMessageId: extractMailgunMessageId(responseBody),
+    });
   } catch (error) {
     console.error("[Email] Failed to send message via Mailgun:", error);
+    await persistEmailLog({
+      to: normalizedRecipient,
+      subject,
+      message,
+      status: "FAILED",
+      provider: "mailgun",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     logMockEmail(normalizedRecipient, subject, message);
     throw new Error("Email delivery failed");
   }

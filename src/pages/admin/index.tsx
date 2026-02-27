@@ -8,6 +8,7 @@ import type { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
+import Link from "next/link";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -244,6 +245,20 @@ export default function AdminDashboard() {
           <p className="mt-2 text-sm text-blue-900">
             Manage users, invitations, and account settings across the entire ProjectDesk workspace.
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/admin/email-test"
+              className="rounded-md border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            >
+              Email delivery test
+            </Link>
+            <Link
+              href="/admin/email-logs"
+              className="rounded-md border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            >
+              View email logs
+            </Link>
+          </div>
         </section>
 
         <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

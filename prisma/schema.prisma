@@ -137,6 +137,22 @@ model Notification {
   @@index([projectId])
 }
 
+model EmailLog {
+  id                Int      @id @default(autoincrement())
+  to                String
+  subject           String
+  messagePreview    String
+  status            String
+  provider          String?
+  providerMessageId String?
+  error             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
 model EmailVerification {
   id        Int      @id @default(autoincrement())
   userId    Int
