@@ -525,9 +525,24 @@ export default function TaskDetail() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Due Date
-                  </label>
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="block text-sm font-medium">Due Date</label>
+                    <button
+                      type="button"
+                      className={`text-xs ${
+                        editForm.dueDate
+                          ? "text-blue-600 hover:text-blue-700 underline"
+                          : "text-gray-400 cursor-not-allowed"
+                      }`}
+                      onClick={() =>
+                        editForm.dueDate &&
+                        setEditForm({ ...editForm, dueDate: "" })
+                      }
+                      disabled={!editForm.dueDate}
+                    >
+                      Remove due date
+                    </button>
+                  </div>
                   <input
                     type="date"
                     className="w-full border rounded px-2 py-1"

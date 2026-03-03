@@ -73,11 +73,21 @@ export default async function handler(
       : undefined;
 
     try {
-      const parsedStart = startDate ? new Date(startDate) : undefined;
-      const parsedDue = dueDate ? new Date(dueDate) : undefined;
+      const parseOptionalDate = (value: unknown) => {
+        if (value === undefined) return undefined;
+        if (value === null || value === "") return null;
+        const parsed = new Date(value as string);
+        if (Number.isNaN(parsed.getTime())) {
+          throw new Error("Invalid date value");
+        }
+        return parsed;
+      };
+
+      const parsedStart = parseOptionalDate(startDate);
+      const parsedDue = parseOptionalDate(dueDate);
 
       let autoDuration: number | undefined = duration ? Number(duration) : undefined;
-      if (parsedStart && parsedDue) {
+      if (parsedStart instanceof Date && parsedDue instanceof Date) {
         const diff = Math.ceil((parsedDue.getTime() - parsedStart.getTime()) / (1000 * 60 * 60 * 24));
         autoDuration = diff >= 0 ? diff : 0;
       }
@@ -112,6 +122,9 @@ export default async function handler(
 
       return res.status(200).json(updated);
     } catch (error: any) {
+      if (error?.message === "Invalid date value") {
+        return res.status(400).json({ error: "Invalid date value" });
+      }
       console.error("Task update error:", error.message || error);
       return res.status(500).json({ error: "Failed to update task" });
     }
