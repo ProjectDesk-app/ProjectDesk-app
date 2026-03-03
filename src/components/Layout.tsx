@@ -27,9 +27,11 @@ type AccountModalType = "profile" | "name" | "email" | "password" | "support";
 export default function Layout({
   title,
   children,
+  fluid = false,
 }: {
   title?: string;
   children: React.ReactNode;
+  fluid?: boolean;
 }) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -367,7 +369,7 @@ export default function Layout({
           </div>
         </div>
       )}
-      <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+      <main className={fluid ? "w-full px-4 py-8" : "mx-auto max-w-5xl px-4 py-8"}>{children}</main>
 
       <Toaster position="bottom-right" />
 

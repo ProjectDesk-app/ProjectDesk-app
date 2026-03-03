@@ -132,7 +132,7 @@ export default function ProjectTasks() {
 
   if (!data) {
     return (
-      <Layout title="Project Tasks">
+      <Layout title="Project Tasks" fluid>
         {projectId ? (
           <ProjectLayout projectId={projectId} title="Tasks">
             <LoadingState
@@ -154,86 +154,85 @@ export default function ProjectTasks() {
   }
 
   return (
-    <Layout title="Project Tasks">
-      <div className="max-w-5xl mx-auto">
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="mb-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md shadow-sm transition"
-        >
-          ← Back to Dashboard
-        </button>
-        <ProjectLayout projectId={projectId as string} title="Tasks">
-          <div className="p-6 text-gray-700">
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <button
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  onClick={() => setModalOpen(true)}
-                >
-                  + New Task
-                </button>
-                <div className="flex items-center gap-3">
-                  {canFilterByMine && (
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300"
-                        checked={showMineOnly}
-                        onChange={(e) => setShowMineOnly(e.target.checked)}
-                      />
-                      <span>Show only my assigned tasks</span>
-                    </label>
-                  )}
-                  <div className="inline-flex rounded-md border border-gray-200 bg-white text-sm font-medium shadow-sm">
-                    <button
-                      type="button"
-                      className={`px-3 py-1.5 rounded-l-md ${
-                        viewMode === "list"
-                          ? "bg-blue-600 text-white"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
-                      onClick={() => setViewMode("list")}
-                    >
-                      List View
-                    </button>
-                    <button
-                      type="button"
-                      className={`px-3 py-1.5 rounded-r-md ${
-                        viewMode === "kanban"
-                          ? "bg-blue-600 text-white"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
-                      onClick={() => setViewMode("kanban")}
-                    >
-                      Kanban View
-                    </button>
-                  </div>
+    <Layout title="Project Tasks" fluid>
+      <button
+        onClick={() => router.push("/dashboard")}
+        className="mb-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md shadow-sm transition"
+      >
+        ← Back to Dashboard
+      </button>
+      <ProjectLayout projectId={projectId as string} title="Tasks">
+        <div className="p-6 text-gray-700">
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <button
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                onClick={() => setModalOpen(true)}
+              >
+                + New Task
+              </button>
+              <div className="flex items-center gap-3">
+                {canFilterByMine && (
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300"
+                      checked={showMineOnly}
+                      onChange={(e) => setShowMineOnly(e.target.checked)}
+                    />
+                    <span>Show only my assigned tasks</span>
+                  </label>
+                )}
+                <div className="inline-flex rounded-md border border-gray-200 bg-white text-sm font-medium shadow-sm">
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 rounded-l-md ${
+                      viewMode === "list"
+                        ? "bg-blue-600 text-white"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                    onClick={() => setViewMode("list")}
+                  >
+                    List View
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 rounded-r-md ${
+                      viewMode === "kanban"
+                        ? "bg-blue-600 text-white"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                    onClick={() => setViewMode("kanban")}
+                  >
+                    Kanban View
+                  </button>
                 </div>
               </div>
+            </div>
 
-              <TaskFormModal
-                projectId={projectId}
-                isOpen={isModalOpen}
-                onClose={() => setModalOpen(false)}
-                mutate={mutate}
-              />
+            <TaskFormModal
+              projectId={projectId}
+              isOpen={isModalOpen}
+              onClose={() => setModalOpen(false)}
+              mutate={mutate}
+            />
 
-              <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                {taskStatsCards.map((card) => (
-                  <div
-                    key={card.label}
-                    className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-                  >
-                    <p className="text-xs uppercase tracking-wide text-gray-500">
-                      {card.label}
-                    </p>
-                    <p className="mt-1 text-2xl font-semibold text-gray-900">
-                      {card.value.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-600">{card.helper}</p>
-                  </div>
-                ))}
-              </div>
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {taskStatsCards.map((card) => (
+                <div
+                  key={card.label}
+                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                    {card.label}
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">
+                    {card.value.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-gray-600">{card.helper}</p>
+                </div>
+              ))}
+            </div>
 
               {viewMode === "list" ? (
                 <>
@@ -386,7 +385,6 @@ export default function ProjectTasks() {
             </>
           </div>
         </ProjectLayout>
-      </div>
       <Toaster position="bottom-right" />
     </Layout>
   );

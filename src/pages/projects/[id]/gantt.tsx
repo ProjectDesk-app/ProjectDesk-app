@@ -46,7 +46,7 @@ export default function GanttPage() {
 
   if (!tasks)
     return (
-      <Layout title={pageTitle}>
+      <Layout title={pageTitle} fluid>
         <LoadingState
           title="Preparing your Gantt chart"
           message="We’re organising project tasks and timelines for a clear visual overview."
@@ -57,12 +57,10 @@ export default function GanttPage() {
 
   if (!tasks || tasks.length === 0) {
     return (
-      <Layout title={pageTitle}>
-        <div className="max-w-5xl mx-auto">
-          <div className="p-6 border rounded-md bg-gray-50 text-center text-gray-600">
-            <h2 className="text-lg font-semibold mb-2">No Tasks Available</h2>
-            <p>You can add new tasks from the Tasks tab to populate the Gantt chart.</p>
-          </div>
+      <Layout title={pageTitle} fluid>
+        <div className="p-6 border rounded-md bg-gray-50 text-center text-gray-600">
+          <h2 className="text-lg font-semibold mb-2">No Tasks Available</h2>
+          <p>You can add new tasks from the Tasks tab to populate the Gantt chart.</p>
         </div>
       </Layout>
     );
@@ -183,7 +181,7 @@ export default function GanttPage() {
   }
 
   return (
-    <Layout title={pageTitle}>
+    <Layout title={pageTitle} fluid>
       {isMobile && (
         <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
           For the best experience, try viewing the Gantt chart on a larger screen.
