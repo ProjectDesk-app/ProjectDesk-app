@@ -244,143 +244,154 @@ export default function GanttPage() {
     beginNameColumnResize(event.touches[0].clientX);
   };
 
-  const CustomTaskListHeader = useCallback(
-    ({ headerHeight, fontFamily, fontSize }: TaskListHeaderProps) => (
+  const CustomTaskListHeader = ({ headerHeight, fontFamily, fontSize }: TaskListHeaderProps) => (
+    <div
+      style={{
+        fontFamily,
+        fontSize,
+        width: taskListTotalWidth,
+        borderTop: "1px solid #e6e4e4",
+        borderLeft: "1px solid #e6e4e4",
+        borderBottom: "1px solid #e6e4e4",
+        backgroundColor: "#fff",
+      }}
+    >
       <div
         style={{
-          fontFamily,
-          fontSize,
-          width: taskListTotalWidth,
-          borderTop: "1px solid #e6e4e4",
-          borderLeft: "1px solid #e6e4e4",
-          borderBottom: "1px solid #e6e4e4",
-          backgroundColor: "#fff",
+          display: "grid",
+          gridTemplateColumns: `${nameColumnWidth}px ${DATE_COLUMN_WIDTH}px ${DATE_COLUMN_WIDTH}px`,
+          height: headerHeight - 2,
         }}
       >
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `${nameColumnWidth}px ${DATE_COLUMN_WIDTH}px ${DATE_COLUMN_WIDTH}px`,
-            height: headerHeight - 2,
-          }}
+          className="relative flex items-center border-r border-gray-300 px-2 font-medium text-gray-800"
+          style={{ minWidth: nameColumnWidth }}
         >
-          <div
-            className="relative flex items-center border-r border-gray-300 px-2 font-medium text-gray-800"
-            style={{ minWidth: nameColumnWidth }}
-          >
-            Name
-            <button
-              type="button"
-              aria-label="Resize Name column"
-              className={`absolute -right-1 top-0 h-full w-2 cursor-col-resize touch-none ${
-                isResizingNameColumn ? "bg-blue-200" : "bg-transparent hover:bg-gray-200"
-              }`}
-              onMouseDown={handleNameDividerMouseDown}
-              onTouchStart={handleNameDividerTouchStart}
-            />
-          </div>
-          <div
-            className="flex items-center border-r border-gray-300 px-2 font-medium text-gray-800"
-            style={{ minWidth: DATE_COLUMN_WIDTH }}
-          >
-            From
-          </div>
-          <div
-            className="flex items-center px-2 font-medium text-gray-800"
-            style={{ minWidth: DATE_COLUMN_WIDTH }}
-          >
-            To
-          </div>
+          Name
+          <button
+            type="button"
+            aria-label="Resize Name column"
+            className={`absolute -right-1 top-0 h-full w-2 cursor-col-resize touch-none ${
+              isResizingNameColumn ? "bg-blue-200" : "bg-transparent hover:bg-gray-200"
+            }`}
+            onMouseDown={handleNameDividerMouseDown}
+            onTouchStart={handleNameDividerTouchStart}
+          />
+        </div>
+        <div
+          className="flex items-center border-r border-gray-300 px-2 font-medium text-gray-800"
+          style={{ minWidth: DATE_COLUMN_WIDTH }}
+        >
+          From
+        </div>
+        <div
+          className="flex items-center px-2 font-medium text-gray-800"
+          style={{ minWidth: DATE_COLUMN_WIDTH }}
+        >
+          To
         </div>
       </div>
-    ),
-    [handleNameDividerMouseDown, handleNameDividerTouchStart, isResizingNameColumn, nameColumnWidth, taskListTotalWidth]
+    </div>
   );
 
-  const CustomTaskListTable = useCallback(
-    ({
-      rowHeight,
-      fontFamily,
-      fontSize,
-      locale,
-      tasks,
-      selectedTaskId,
-      setSelectedTask,
-      onExpanderClick,
-    }: TaskListTableProps) => {
-      const dateFormatter = new Intl.DateTimeFormat(locale || undefined, {
+  const CustomTaskListTable = ({
+    rowHeight,
+    fontFamily,
+    fontSize,
+    locale,
+    tasks,
+    selectedTaskId,
+    setSelectedTask,
+    onExpanderClick,
+  }: TaskListTableProps) => {
+    let dateFormatter: Intl.DateTimeFormat;
+    try {
+      dateFormatter = new Intl.DateTimeFormat(locale || undefined, {
         weekday: "short",
         year: "numeric",
         month: "long",
         day: "numeric",
       });
-      const gridTemplateColumns = `${nameColumnWidth}px ${DATE_COLUMN_WIDTH}px ${DATE_COLUMN_WIDTH}px`;
-      return (
-        <div
-          style={{
-            fontFamily,
-            fontSize,
-            width: taskListTotalWidth,
-            borderLeft: "1px solid #e6e4e4",
-            borderBottom: "1px solid #e6e4e4",
-          }}
-        >
-          {tasks.map((task, index) => {
-            const expanderSymbol = task.hideChildren === false ? "▼" : task.hideChildren === true ? "▶" : "";
-            const isSelected = selectedTaskId === task.id;
-            const rowBackground =
-              isSelected
-                ? "#dbeafe"
-                : index % 2 === 0
-                ? "#ffffff"
-                : "#f5f5f5";
-            return (
+    } catch {
+      dateFormatter = new Intl.DateTimeFormat(undefined, {
+        weekday: "short",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    }
+
+    const formatTaskDate = (value: unknown) => {
+      const date = value instanceof Date ? value : new Date(value as string);
+      if (Number.isNaN(date.getTime())) return "N/A";
+      return dateFormatter.format(date);
+    };
+
+    const gridTemplateColumns = `${nameColumnWidth}px ${DATE_COLUMN_WIDTH}px ${DATE_COLUMN_WIDTH}px`;
+    return (
+      <div
+        style={{
+          fontFamily,
+          fontSize,
+          width: taskListTotalWidth,
+          borderLeft: "1px solid #e6e4e4",
+          borderBottom: "1px solid #e6e4e4",
+        }}
+      >
+        {tasks.map((task, index) => {
+          const expanderSymbol = task.hideChildren === false ? "▼" : task.hideChildren === true ? "▶" : "";
+          const isSelected = selectedTaskId === task.id;
+          const rowBackground =
+            isSelected
+              ? "#dbeafe"
+              : index % 2 === 0
+              ? "#ffffff"
+              : "#f5f5f5";
+          return (
+            <div
+              key={`${task.id}-row`}
+              style={{
+                height: rowHeight,
+                display: "grid",
+                gridTemplateColumns,
+                backgroundColor: rowBackground,
+                borderBottom: "1px solid #ebeff2",
+                cursor: "pointer",
+              }}
+              onClick={() => setSelectedTask(task.id)}
+            >
               <div
-                key={`${task.id}-row`}
-                style={{
-                  height: rowHeight,
-                  display: "grid",
-                  gridTemplateColumns,
-                  backgroundColor: rowBackground,
-                  borderBottom: "1px solid #ebeff2",
-                  cursor: "pointer",
-                }}
-                onClick={() => setSelectedTask(task.id)}
+                title={task.name}
+                className="flex min-w-0 items-center gap-1 border-r border-gray-200 px-2"
               >
-                <div
-                  title={task.name}
-                  className="flex min-w-0 items-center gap-1 border-r border-gray-200 px-2"
-                >
-                  {expanderSymbol ? (
-                    <button
-                      type="button"
-                      className="px-1 text-xs text-gray-600 hover:text-gray-900"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onExpanderClick(task);
-                      }}
-                    >
-                      {expanderSymbol}
-                    </button>
-                  ) : (
-                    <span className="w-4" />
-                  )}
-                  <span className="truncate">{task.name}</span>
-                </div>
-                <div className="truncate border-r border-gray-200 px-2">
-                  {dateFormatter.format(task.start)}
-                </div>
-                <div className="truncate px-2">
-                  {dateFormatter.format(task.end)}
-                </div>
+                {expanderSymbol ? (
+                  <button
+                    type="button"
+                    className="px-1 text-xs text-gray-600 hover:text-gray-900"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onExpanderClick(task);
+                    }}
+                  >
+                    {expanderSymbol}
+                  </button>
+                ) : (
+                  <span className="w-4" />
+                )}
+                <span className="truncate">{task.name}</span>
               </div>
-            );
-          })}
-        </div>
-      );
-    },
-    [nameColumnWidth, taskListTotalWidth]
-  );
+              <div className="truncate border-r border-gray-200 px-2">
+                {formatTaskDate(task.start)}
+              </div>
+              <div className="truncate px-2">
+                {formatTaskDate(task.end)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const handleDateChange = async (task: Task, _children: Task[]) => {
     // Update the task dueDate and start date via PATCH
