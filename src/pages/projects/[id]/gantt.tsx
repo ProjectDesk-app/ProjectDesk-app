@@ -14,7 +14,7 @@ const TIMELINE_COLUMN_MIN = 40;
 const TIMELINE_COLUMN_MAX = 180;
 const DEFAULT_NAME_COLUMN_WIDTH = 240;
 const DEFAULT_TIMELINE_COLUMN_WIDTH = 82;
-const DATE_COLUMN_WIDTH = 180;
+const DATE_COLUMN_WIDTH = 110;
 const GANTT_NAME_WIDTH_STORAGE_KEY = "projectdesk:gantt:name-column-width";
 const GANTT_TIMELINE_WIDTH_STORAGE_KEY = "projectdesk:gantt:timeline-column-width";
 
@@ -41,6 +41,12 @@ const normalizeStatus = (status: unknown) =>
   typeof status === "string" ? status.toLowerCase() : String(status ?? "").toLowerCase();
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const COMPACT_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "2-digit",
+});
 
 export default function GanttPage() {
   const router = useRouter();
@@ -298,33 +304,15 @@ export default function GanttPage() {
     rowHeight,
     fontFamily,
     fontSize,
-    locale,
     tasks,
     selectedTaskId,
     setSelectedTask,
     onExpanderClick,
   }: TaskListTableProps) => {
-    let dateFormatter: Intl.DateTimeFormat;
-    try {
-      dateFormatter = new Intl.DateTimeFormat(locale || undefined, {
-        weekday: "short",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch {
-      dateFormatter = new Intl.DateTimeFormat(undefined, {
-        weekday: "short",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    }
-
     const formatTaskDate = (value: unknown) => {
       const date = value instanceof Date ? value : new Date(value as string);
       if (Number.isNaN(date.getTime())) return "N/A";
-      return dateFormatter.format(date);
+      return COMPACT_DATE_FORMATTER.format(date);
     };
 
     const gridTemplateColumns = `${nameColumnWidth}px ${DATE_COLUMN_WIDTH}px ${DATE_COLUMN_WIDTH}px`;
