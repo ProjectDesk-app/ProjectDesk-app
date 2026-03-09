@@ -52,6 +52,16 @@ type TaskListTableProps = {
 
 const normalizeStatus = (status: unknown) =>
   typeof status === "string" ? status.toLowerCase() : String(status ?? "").toLowerCase();
+const isCompletedStatus = (status: string) => status === "done" || status === "complete";
+const IN_PROGRESS_STATUSES = new Set([
+  "in_progress",
+  "behind_schedule",
+  "at_risk",
+  "blocked",
+  "review",
+  "deferred",
+]);
+const isInProgressStatus = (status: string) => IN_PROGRESS_STATUSES.has(status);
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -238,11 +248,11 @@ export default function GanttPage() {
   function getEnhancedTaskColor(t: any, end: Date, durationDays: number) {
     const today = new Date();
     const status = normalizeStatus(t.status);
+    if (isCompletedStatus(status)) return COLOR_DONE;
     if (t.flagged) return COLOR_FLAGGED;
     if (t.dueDate && new Date(t.dueDate) < today) return COLOR_OVERDUE;
     if (durationDays > 30) return COLOR_LONG_DURATION;
-    if (status === "done") return COLOR_DONE;
-    if (status === "in_progress") return COLOR_IN_PROGRESS;
+    if (isInProgressStatus(status)) return COLOR_IN_PROGRESS;
     if (status === "todo") return COLOR_TODO;
     return COLOR_TODO;
   }
@@ -290,7 +300,7 @@ export default function GanttPage() {
         name: t.title,
         start,
         end,
-        progress: status === "done" ? 100 : status === "in_progress" ? 50 : 0,
+        progress: isCompletedStatus(status) ? 100 : isInProgressStatus(status) ? 50 : 0,
         dependencies: t.dependencyTaskId ? [String(t.dependencyTaskId)] : [],
         type: "task",
         styles: {
@@ -723,9 +733,17 @@ export default function GanttPage() {
           .gantt-no-print {
             display: none !important;
           }
-          .gantt-print-header,
-          .gantt-print-only {
+          .gantt-print-header {
             display: block !important;
+          }
+          .gantt-print-only {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            gap: 4px 10px !important;
+          }
+          .gantt-print-only > div {
+            white-space: nowrap;
           }
           .gantt-print-header {
             margin-bottom: 6px;
