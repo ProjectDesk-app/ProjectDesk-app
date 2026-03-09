@@ -70,6 +70,20 @@ const LEGEND_ITEMS: Array<{ label: string; color: string; description: string }>
   { label: "To do", color: COLOR_TODO, description: "Not started" },
 ];
 
+function LegendSwatch({ color, size = 12 }: { color: string; size?: number }) {
+  return (
+    <svg
+      className="gantt-legend-swatch"
+      width={size}
+      height={size}
+      viewBox="0 0 12 12"
+      aria-hidden="true"
+    >
+      <rect x="0.5" y="0.5" width="11" height="11" rx="1.5" fill={color} stroke="#9ca3af" />
+    </svg>
+  );
+}
+
 export default function GanttPage() {
   const router = useRouter();
   const { id: rawId } = router.query;
@@ -643,10 +657,7 @@ export default function GanttPage() {
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {LEGEND_ITEMS.map((item) => (
             <div key={item.label} className="flex items-center gap-2 text-xs text-gray-700">
-              <span
-                className="inline-block h-3 w-3 rounded-sm border border-gray-300"
-                style={{ backgroundColor: item.color }}
-              />
+              <LegendSwatch color={item.color} />
               <span className="font-medium">{item.label}</span>
               <span className="text-gray-500">({item.description})</span>
             </div>
@@ -664,10 +675,7 @@ export default function GanttPage() {
         <div className="gantt-print-only mb-2 flex flex-wrap gap-x-4 gap-y-2 rounded border border-gray-200 bg-gray-50 px-2 py-1">
           {LEGEND_ITEMS.map((item) => (
             <div key={`print-${item.label}`} className="flex items-center gap-1.5 text-[10px] text-gray-700">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-sm border border-gray-300"
-                style={{ backgroundColor: item.color }}
-              />
+              <LegendSwatch color={item.color} size={10} />
               <span className="font-medium">{item.label}</span>
             </div>
           ))}
@@ -692,6 +700,11 @@ export default function GanttPage() {
         .gantt-print-header,
         .gantt-print-only {
           display: none;
+        }
+        .gantt-legend-swatch {
+          flex: 0 0 auto;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         @media print {
           @page {
@@ -743,6 +756,10 @@ export default function GanttPage() {
           }
           #gantt-print-area svg text {
             font-size: 10px !important;
+          }
+          #gantt-print-area {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
       `}</style>
