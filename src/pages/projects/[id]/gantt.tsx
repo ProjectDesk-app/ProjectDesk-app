@@ -15,8 +15,21 @@ const TIMELINE_COLUMN_MAX = 180;
 const DEFAULT_NAME_COLUMN_WIDTH = 240;
 const DEFAULT_TIMELINE_COLUMN_WIDTH = 82;
 const DATE_COLUMN_WIDTH = 110;
+const PRINT_NAME_COLUMN_WIDTH = 210;
+const PRINT_DATE_COLUMN_WIDTH = 84;
+const PRINT_TIMELINE_COLUMN_WIDTH = 44;
+const DEFAULT_ROW_HEIGHT = 50;
+const PRINT_ROW_HEIGHT = 34;
+const DEFAULT_HEADER_HEIGHT = 50;
+const PRINT_HEADER_HEIGHT = 38;
 const GANTT_NAME_WIDTH_STORAGE_KEY = "projectdesk:gantt:name-column-width";
 const GANTT_TIMELINE_WIDTH_STORAGE_KEY = "projectdesk:gantt:timeline-column-width";
+const COLOR_FLAGGED = "#8b5cf6";
+const COLOR_OVERDUE = "#ef4444";
+const COLOR_LONG_DURATION = "#f59e0b";
+const COLOR_DONE = "#16a34a";
+const COLOR_IN_PROGRESS = "#2563eb";
+const COLOR_TODO = "#6b7280";
 
 type TaskListHeaderProps = {
   headerHeight: number;
@@ -48,6 +61,15 @@ const COMPACT_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   year: "2-digit",
 });
 
+const LEGEND_ITEMS: Array<{ label: string; color: string; description: string }> = [
+  { label: "Flagged", color: COLOR_FLAGGED, description: "Needs support" },
+  { label: "Overdue", color: COLOR_OVERDUE, description: "Past due date" },
+  { label: "Long duration", color: COLOR_LONG_DURATION, description: "More than 30 days" },
+  { label: "In progress", color: COLOR_IN_PROGRESS, description: "Active work" },
+  { label: "Done", color: COLOR_DONE, description: "Completed" },
+  { label: "To do", color: COLOR_TODO, description: "Not started" },
+];
+
 export default function GanttPage() {
   const router = useRouter();
   const { id: rawId } = router.query;
@@ -60,8 +82,11 @@ export default function GanttPage() {
   const [nameColumnWidth, setNameColumnWidth] = useState(DEFAULT_NAME_COLUMN_WIDTH);
   const [timelineColumnWidth, setTimelineColumnWidth] = useState(DEFAULT_TIMELINE_COLUMN_WIDTH);
   const [isResizingNameColumn, setIsResizingNameColumn] = useState(false);
+  const [printMode, setPrintMode] = useState(false);
+  const [isPreparingPdf, setIsPreparingPdf] = useState(false);
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(DEFAULT_NAME_COLUMN_WIDTH);
+  const printFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const updateIsMobile = () => {
@@ -131,6 +156,26 @@ export default function GanttPage() {
     };
   }, [isResizingNameColumn]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleAfterPrint = () => {
+      if (printFallbackTimerRef.current) {
+        clearTimeout(printFallbackTimerRef.current);
+        printFallbackTimerRef.current = null;
+      }
+      setPrintMode(false);
+      setIsPreparingPdf(false);
+    };
+
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+      if (printFallbackTimerRef.current) {
+        clearTimeout(printFallbackTimerRef.current);
+      }
+    };
+  }, []);
+
   const beginNameColumnResize = useCallback(
     (clientX: number) => {
       resizeStartXRef.current = clientX;
@@ -142,6 +187,16 @@ export default function GanttPage() {
 
   const projectTitle = project?.title || (projectId ? `Project ${projectId}` : "Project");
   const pageTitle = `${projectTitle} Gantt Chart`;
+  const effectiveNameColumnWidth = printMode
+    ? clampNumber(Math.min(nameColumnWidth, PRINT_NAME_COLUMN_WIDTH), NAME_COLUMN_MIN, NAME_COLUMN_MAX)
+    : nameColumnWidth;
+  const effectiveDateColumnWidth = printMode ? PRINT_DATE_COLUMN_WIDTH : DATE_COLUMN_WIDTH;
+  const effectiveTimelineColumnWidth = printMode
+    ? clampNumber(Math.min(timelineColumnWidth, PRINT_TIMELINE_COLUMN_WIDTH), TIMELINE_COLUMN_MIN, TIMELINE_COLUMN_MAX)
+    : timelineColumnWidth;
+  const effectiveViewMode = printMode ? ViewMode.Month : viewMode;
+  const effectiveRowHeight = printMode ? PRINT_ROW_HEIGHT : DEFAULT_ROW_HEIGHT;
+  const effectiveHeaderHeight = printMode ? PRINT_HEADER_HEIGHT : DEFAULT_HEADER_HEIGHT;
 
   if (!tasks)
     return (
@@ -169,15 +224,13 @@ export default function GanttPage() {
   function getEnhancedTaskColor(t: any, end: Date, durationDays: number) {
     const today = new Date();
     const status = normalizeStatus(t.status);
-    // Overdue: dueDate exists and is before today
-    if (t.dueDate && new Date(t.dueDate) < today) return "red";
-    // Long duration: duration > 30 days
-    if (durationDays > 30) return "orange";
-    if (t.flagged) return "red";
-    if (status === "done") return "green";
-    if (status === "in_progress") return "blue";
-    if (status === "todo") return "gray";
-    return "gray";
+    if (t.flagged) return COLOR_FLAGGED;
+    if (t.dueDate && new Date(t.dueDate) < today) return COLOR_OVERDUE;
+    if (durationDays > 30) return COLOR_LONG_DURATION;
+    if (status === "done") return COLOR_DONE;
+    if (status === "in_progress") return COLOR_IN_PROGRESS;
+    if (status === "todo") return COLOR_TODO;
+    return COLOR_TODO;
   }
 
   let sortedTasks = [...tasks];
@@ -234,11 +287,30 @@ export default function GanttPage() {
       };
     });
 
+  const formatCompactDate = (date: Date) => COMPACT_DATE_FORMATTER.format(date);
+  const projectWindow = ganttTasks.reduce(
+    (acc, task) => {
+      const startTime = task.start.getTime();
+      const endTime = task.end.getTime();
+      return {
+        minStart: Math.min(acc.minStart, startTime),
+        maxEnd: Math.max(acc.maxEnd, endTime),
+      };
+    },
+    { minStart: Number.POSITIVE_INFINITY, maxEnd: Number.NEGATIVE_INFINITY }
+  );
+
+  const hasProjectWindow =
+    Number.isFinite(projectWindow.minStart) && Number.isFinite(projectWindow.maxEnd);
+  const projectRangeLabel = hasProjectWindow
+    ? `${formatCompactDate(new Date(projectWindow.minStart))} - ${formatCompactDate(new Date(projectWindow.maxEnd))}`
+    : "N/A";
+
   const GanttComponent = dynamic(() =>
     import("gantt-task-react").then((mod) => mod.Gantt)
   , { ssr: false });
 
-  const taskListTotalWidth = nameColumnWidth + DATE_COLUMN_WIDTH * 2;
+  const taskListTotalWidth = effectiveNameColumnWidth + effectiveDateColumnWidth * 2;
 
   const handleNameDividerMouseDown = (event: any) => {
     event.preventDefault();
@@ -265,13 +337,13 @@ export default function GanttPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `${nameColumnWidth}px ${DATE_COLUMN_WIDTH}px ${DATE_COLUMN_WIDTH}px`,
+          gridTemplateColumns: `${effectiveNameColumnWidth}px ${effectiveDateColumnWidth}px ${effectiveDateColumnWidth}px`,
           height: headerHeight - 2,
         }}
       >
         <div
           className="relative flex items-center border-r border-gray-300 px-2 font-medium text-gray-800"
-          style={{ minWidth: nameColumnWidth }}
+          style={{ minWidth: effectiveNameColumnWidth }}
         >
           Name
           <button
@@ -286,13 +358,13 @@ export default function GanttPage() {
         </div>
         <div
           className="flex items-center border-r border-gray-300 px-2 font-medium text-gray-800"
-          style={{ minWidth: DATE_COLUMN_WIDTH }}
+          style={{ minWidth: effectiveDateColumnWidth }}
         >
           From
         </div>
         <div
           className="flex items-center px-2 font-medium text-gray-800"
-          style={{ minWidth: DATE_COLUMN_WIDTH }}
+          style={{ minWidth: effectiveDateColumnWidth }}
         >
           To
         </div>
@@ -315,7 +387,7 @@ export default function GanttPage() {
       return COMPACT_DATE_FORMATTER.format(date);
     };
 
-    const gridTemplateColumns = `${nameColumnWidth}px ${DATE_COLUMN_WIDTH}px ${DATE_COLUMN_WIDTH}px`;
+    const gridTemplateColumns = `${effectiveNameColumnWidth}px ${effectiveDateColumnWidth}px ${effectiveDateColumnWidth}px`;
     return (
       <div
         style={{
@@ -407,6 +479,26 @@ export default function GanttPage() {
     mutate();
   };
 
+  const handleExportPdf = () => {
+    if (typeof window === "undefined") return;
+    setIsPreparingPdf(true);
+    setPrintMode(true);
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        window.print();
+        if (printFallbackTimerRef.current) {
+          clearTimeout(printFallbackTimerRef.current);
+        }
+        printFallbackTimerRef.current = setTimeout(() => {
+          setPrintMode(false);
+          setIsPreparingPdf(false);
+          printFallbackTimerRef.current = null;
+        }, 2500);
+      });
+    });
+  };
+
   function CustomTooltip({ task }: { task: Task }) {
     const durationDays = Math.round((task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const shortDateFormatter = new Intl.DateTimeFormat(undefined, isMobile
@@ -429,14 +521,14 @@ export default function GanttPage() {
           For the best experience, try viewing the Gantt chart on a larger screen.
         </div>
       )}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+      <div className="gantt-no-print flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
         <h1 className="text-2xl font-semibold">{pageTitle}</h1>
         <a href={`/projects/${projectId}`} className="text-sm border px-3 py-1 rounded-md">
           Back to Project
         </a>
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="gantt-no-print mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap gap-2">
           <button
             className={`px-3 py-1 rounded-md border ${viewMode === ViewMode.Day ? "bg-blue-500 text-white" : ""}`}
@@ -479,19 +571,16 @@ export default function GanttPage() {
           </button>
           <button
             className="px-3 py-1 rounded-md border border-blue-500 text-blue-600 hover:bg-blue-50"
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                window.print();
-              }
-            }}
+            onClick={handleExportPdf}
             type="button"
+            disabled={isPreparingPdf}
           >
-            Export PDF
+            {isPreparingPdf ? "Preparing PDF..." : "Export PDF"}
           </button>
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+      <div className="gantt-no-print mb-4 flex flex-wrap items-center gap-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <span className="whitespace-nowrap">Name column</span>
           <input
@@ -547,12 +636,51 @@ export default function GanttPage() {
         </p>
       </div>
 
+      <div className="gantt-legend mb-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">
+          Colour key
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {LEGEND_ITEMS.map((item) => (
+            <div key={item.label} className="flex items-center gap-2 text-xs text-gray-700">
+              <span
+                className="inline-block h-3 w-3 rounded-sm border border-gray-300"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="font-medium">{item.label}</span>
+              <span className="text-gray-500">({item.description})</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div id="gantt-print-area" className="w-full overflow-auto border rounded-md p-2 bg-white">
+        <div className="gantt-print-header">
+          <h2 className="text-lg font-semibold text-gray-900">{pageTitle}</h2>
+          <p className="text-xs text-gray-600">
+            Project range: {projectRangeLabel} | Generated: {formatCompactDate(new Date())}
+          </p>
+        </div>
+        <div className="gantt-print-only mb-2 flex flex-wrap gap-x-4 gap-y-2 rounded border border-gray-200 bg-gray-50 px-2 py-1">
+          {LEGEND_ITEMS.map((item) => (
+            <div key={`print-${item.label}`} className="flex items-center gap-1.5 text-[10px] text-gray-700">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm border border-gray-300"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="font-medium">{item.label}</span>
+            </div>
+          ))}
+        </div>
         <GanttComponent
           tasks={ganttTasks}
-          viewMode={viewMode}
-          columnWidth={timelineColumnWidth}
+          viewMode={effectiveViewMode}
+          preStepsCount={printMode ? 0 : 1}
+          columnWidth={effectiveTimelineColumnWidth}
           listCellWidth={`${taskListTotalWidth}px`}
+          rowHeight={effectiveRowHeight}
+          headerHeight={effectiveHeaderHeight}
+          fontSize={printMode ? "11px" : "14px"}
           TaskListHeader={CustomTaskListHeader}
           TaskListTable={CustomTaskListTable}
           onDateChange={handleDateChange}
@@ -561,15 +689,33 @@ export default function GanttPage() {
         />
       </div>
       <style jsx global>{`
+        .gantt-print-header,
+        .gantt-print-only {
+          display: none;
+        }
         @media print {
           @page {
             size: landscape;
-            margin: 10mm;
+            margin: 8mm;
+          }
+          html,
+          body {
+            background: #fff !important;
           }
           body {
             padding: 0 !important;
             margin: 0 !important;
             background: #fff !important;
+          }
+          .gantt-no-print {
+            display: none !important;
+          }
+          .gantt-print-header,
+          .gantt-print-only {
+            display: block !important;
+          }
+          .gantt-print-header {
+            margin-bottom: 6px;
           }
           body * {
             visibility: hidden;
@@ -587,9 +733,16 @@ export default function GanttPage() {
             box-shadow: none !important;
             border: none !important;
             padding: 0 !important;
+            background: #fff !important;
           }
           #gantt-print-area ._3eULf {
             width: 100% !important;
+          }
+          #gantt-print-area [aria-label="Resize Name column"] {
+            display: none !important;
+          }
+          #gantt-print-area svg text {
+            font-size: 10px !important;
           }
         }
       `}</style>
