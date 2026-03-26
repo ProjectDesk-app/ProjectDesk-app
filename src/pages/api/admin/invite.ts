@@ -4,6 +4,7 @@ import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
 import { SubscriptionType, type UserRole } from "@prisma/client";
+import { isEmailBlocked } from "@/lib/blockedEmails";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -22,6 +23,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const normalized = email.trim().toLowerCase();
+  if (await isEmailBlocked(normalized)) {
+    return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });
+  }
   const allowedRoles: UserRole[] = ["ADMIN", "SUPERVISOR", "STUDENT", "COLLABORATOR"];
   const resolvedRole: UserRole = allowedRoles.includes(role as UserRole)
     ? (role as UserRole)

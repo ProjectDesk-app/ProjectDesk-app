@@ -109,6 +109,11 @@ const EXACT_TEXT_MATCHES: Record<string, ErrorInfo> = {
     description: "Your supervisor still needs to approve your sponsorship before you can sign in.",
     help: "We've notified your supervisor. Reach out to them if you need to speed things up.",
   },
+  "this email address has been blocked from projectdesk": {
+    title: "Account blocked",
+    description: "This email address has been blocked from accessing ProjectDesk.",
+    help: "Contact support if you think this happened in error.",
+  },
   "subscription cancelled": {
     title: "Subscription inactive",
     description: "Your subscription is currently inactive.",

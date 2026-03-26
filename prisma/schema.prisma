@@ -44,6 +44,7 @@ model User {
   emailVerifications    EmailVerification[]
   passwordResets        PasswordResetToken[]
   goCardlessRedirectFlows GoCardlessRedirectFlow[]
+  blockedEmailsCreated  BlockedEmail[]  @relation("BlockedByAdmin")
 }
 
 model Project {
@@ -243,6 +244,17 @@ model ProjectFile {
   @@index([projectId])
   @@index([userId])
   @@map("project_files")
+}
+
+model BlockedEmail {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  reason      String?
+  createdAt   DateTime @default(now())
+  blockedById Int?
+  blockedBy   User?    @relation("BlockedByAdmin", fields: [blockedById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
 }
 
 enum FileItemType {

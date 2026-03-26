@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import useSWR from "swr";
+import useSWR, { mutate as mutateCache } from "swr";
 import Layout from "@/components/Layout";
 import { toast, Toaster } from "react-hot-toast";
 import { ShieldCheck, Users, UserPlus, CreditCard, AlertTriangle } from "lucide-react";
 import { UserLookup } from "@/components/admin/UserLookup";
+import { UserActivityPanel } from "@/components/admin/UserActivityPanel";
+import { BlockedEmailsPanel } from "@/components/admin/BlockedEmailsPanel";
 import type { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
@@ -84,6 +86,7 @@ export default function AdminDashboard() {
   const [loadingRole, setLoadingRole] = useState<number | null>(null);
   const [loadingSubscription, setLoadingSubscription] = useState<number | null>(null);
   const [loadingInvite, setLoadingInvite] = useState(false);
+  const [blockingUserId, setBlockingUserId] = useState<number | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
   const [showRoleInfo, setShowRoleInfo] = useState(false);
   const [activeSubscriptionList, setActiveSubscriptionList] = useState<null | { label: string; filters: string[]; value?: number | null }>(null);
@@ -354,7 +357,7 @@ export default function AdminDashboard() {
                 </label>
                 <div className="flex flex-col gap-1 sm:col-span-2">
                   <span className="text-xs font-semibold text-gray-600">Actions</span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={async () => {
                         const name = prompt("Update name", selectedUser.name || "");
@@ -375,7 +378,8 @@ export default function AdminDashboard() {
                               role: selectedUser.role,
                             }),
                           });
-                          if (!res.ok) throw new Error("Failed to update user");
+                          const payload = await res.json().catch(() => null);
+                          if (!res.ok) throw new Error(payload?.error || "Failed to update user");
                           toast.success("User details updated");
                           mutate();
                         } catch (err: any) {
@@ -394,7 +398,8 @@ export default function AdminDashboard() {
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ userId: selectedUser.id }),
                           });
-                          if (!res.ok) throw new Error("Failed to send password reset");
+                          const payload = await res.json().catch(() => null);
+                          if (!res.ok) throw new Error(payload?.error || "Failed to send password reset");
                           toast.success("Password reset email sent");
                         } catch (err: any) {
                           toast.error(err?.message || "Unable to send password reset");
@@ -408,7 +413,40 @@ export default function AdminDashboard() {
                       onClick={async () => {
                         if (!selectedUser) return;
                         const confirmed = window.confirm(
-                          "Delete this user? Their comments, notifications, and memberships will be removed. This cannot be undone."
+                          "Block this user? Their account will be removed from ProjectDesk and the same email address will not be able to sign up again."
+                        );
+                        if (!confirmed) return;
+                        setBlockingUserId(selectedUser.id);
+                        try {
+                          const res = await fetch("/api/admin/users", {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ userId: selectedUser.id, mode: "block" }),
+                          });
+                          const payload = await res.json().catch(() => null);
+                          if (!res.ok) {
+                            throw new Error(payload?.error || "Failed to block user");
+                          }
+                          toast.success("User blocked and removed");
+                          setSelectedUser(null);
+                          mutate();
+                          mutateCache("/api/admin/blocked-emails");
+                        } catch (err: any) {
+                          toast.error(err?.message || "Unable to block user");
+                        } finally {
+                          setBlockingUserId(null);
+                        }
+                      }}
+                      disabled={blockingUserId === selectedUser.id || deletingUserId === selectedUser.id}
+                      className="rounded-md border border-red-300 bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {blockingUserId === selectedUser.id ? "Blocking..." : "Block user"}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!selectedUser) return;
+                        const confirmed = window.confirm(
+                          "Delete this user without blocking their email? Their comments, notifications, and memberships will be removed, but the same email could sign up again later."
                         );
                         if (!confirmed) return;
                         setDeletingUserId(selectedUser.id);
@@ -418,7 +456,7 @@ export default function AdminDashboard() {
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ userId: selectedUser.id }),
                           });
-                          const payload = await res.json();
+                          const payload = await res.json().catch(() => null);
                           if (!res.ok) {
                             throw new Error(payload?.error || "Failed to delete user");
                           }
@@ -431,7 +469,7 @@ export default function AdminDashboard() {
                           setDeletingUserId(null);
                         }
                       }}
-                      disabled={deletingUserId === selectedUser.id}
+                      disabled={deletingUserId === selectedUser.id || blockingUserId === selectedUser.id}
                       className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
                     >
                       {deletingUserId === selectedUser.id ? "Deleting..." : "Delete user"}
@@ -472,6 +510,7 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </div>
+              <UserActivityPanel userId={selectedUser.id} />
             </div>
           )}
         </section>
@@ -518,6 +557,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         </section>
+
+        <BlockedEmailsPanel />
 
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">

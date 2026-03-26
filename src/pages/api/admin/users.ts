@@ -5,6 +5,7 @@ import { authOptions } from "../auth/[...nextauth]";
 import type { UserRole } from "@prisma/client";
 import { SubscriptionType } from "@prisma/client";
 import { cancelSubscription, cancelMandate } from "@/lib/gocardless";
+import { findBlockedEmail, normalizeEmail } from "@/lib/blockedEmails";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = (await getServerSession(req, res, authOptions as any)) as any;
@@ -60,7 +61,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data.name = name ? name.trim() : null;
     }
     if (email) {
-      data.email = email.trim().toLowerCase();
+      const normalizedEmail = normalizeEmail(email);
+      if (!normalizedEmail) {
+        return res.status(400).json({ error: "A valid email is required" });
+      }
+      if (await findBlockedEmail(normalizedEmail)) {
+        return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });
+      }
+      data.email = normalizedEmail;
     }
 
     if (subscriptionType) {
@@ -83,17 +91,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "DELETE") {
-    const { userId } = req.body as { userId?: number };
+    const { userId, mode } = req.body as { userId?: number; mode?: "delete" | "block" };
     if (!userId || Number.isNaN(Number(userId))) {
       return res.status(400).json({ error: "userId required" });
     }
 
     const id = Number(userId);
+    const isBlocking = mode === "block";
 
     const targetUser = await prisma.user.findUnique({
       where: { id },
       select: {
         id: true,
+        email: true,
         goCardlessSubscriptionId: true,
         goCardlessMandateId: true,
       },
@@ -104,7 +114,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (id === session.user.id) {
-      return res.status(400).json({ error: "You cannot delete your own account" });
+      return res.status(400).json({
+        error: isBlocking
+          ? "You cannot block your own account"
+          : "You cannot delete your own account",
+      });
+    }
+
+    if (isBlocking) {
+      const existingBlock = await findBlockedEmail(targetUser.email);
+      if (existingBlock) {
+        return res.status(409).json({ error: "This email address is already blocked" });
+      }
     }
 
     const [supervisedProjects, ownedTaskSets, sponsoredUsers] = await prisma.$transaction([
@@ -127,7 +148,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (sponsoredUsers > 0) {
       return res.status(400).json({
-        error: "This user sponsors other accounts. Remove their sponsorships before deleting the account.",
+        error: isBlocking
+          ? "This user sponsors other accounts. Remove their sponsorships before blocking the account."
+          : "This user sponsors other accounts. Remove their sponsorships before deleting the account.",
       });
     }
 
@@ -148,6 +171,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     await prisma.$transaction(async (tx) => {
+      if (isBlocking) {
+        await tx.blockedEmail.create({
+          data: {
+            email: targetUser.email,
+            reason: "Blocked from the admin dashboard",
+            blockedById: Number(session.user.id),
+          },
+        });
+      }
+
       await tx.comment.deleteMany({ where: { userId: id } });
       await tx.notification.deleteMany({
         where: {
@@ -218,7 +251,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await tx.user.delete({ where: { id } });
     });
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, mode: isBlocking ? "block" : "delete" });
   }
 
   res.setHeader("Allow", ["GET", "PUT", "DELETE"]);

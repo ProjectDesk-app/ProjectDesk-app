@@ -6,6 +6,7 @@ import {
   SUPERVISOR_SPONSOR_LIMIT,
   canSponsorAccounts,
 } from "@/lib/subscriptions";
+import { isEmailBlocked } from "@/lib/blockedEmails";
 
 type MemberInput = {
   id?: number;
@@ -20,6 +21,9 @@ async function resolveMembers(inputs: MemberInput[] = [], role: "STUDENT" | "COL
     if (!input?.email) continue;
     const email = input.email.trim().toLowerCase();
     if (!email) continue;
+    if (await isEmailBlocked(email)) {
+      throw new Error(`The email address ${email} has been blocked from ProjectDesk`);
+    }
 
     let user = input.id
       ? await prisma.user.findUnique({ where: { id: input.id } })

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
+import { isEmailBlocked } from "@/lib/blockedEmails";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const token = (req.method === "POST" ? req.body?.token : req.query.token) as string | undefined;
@@ -31,6 +32,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let message = "Email verified";
 
   if (verification.newEmail) {
+    if (await isEmailBlocked(verification.newEmail)) {
+      await prisma.emailVerification.delete({ where: { token } });
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { pendingEmail: null },
+      });
+      return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });
+    }
+
     const existing = await prisma.user.findFirst({ where: { email: verification.newEmail } });
     if (existing && existing.id !== user.id) {
       await prisma.emailVerification.delete({ where: { token } });

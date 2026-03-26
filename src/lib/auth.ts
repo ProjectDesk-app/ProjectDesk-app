@@ -4,6 +4,7 @@ import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { SubscriptionType } from '@prisma/client';
+import { isEmailBlocked, normalizeEmail } from '@/lib/blockedEmails';
 
 const azureEnabled = process.env.AZURE_AD_ENABLED === 'true';
 const localEnabled = process.env.LOCAL_AUTH_ENABLED !== 'false';
@@ -32,8 +33,12 @@ export const authOptions = {
               password: { label: 'Password', type: 'password' },
             },
             async authorize(credentials) {
-              if (!credentials?.email || !credentials?.password) return null;
-              const user = await prisma.user.findUnique({ where: { email: credentials.email } });
+              const normalizedEmail = normalizeEmail(credentials?.email);
+              if (!normalizedEmail || !credentials?.password) return null;
+              if (await isEmailBlocked(normalizedEmail)) {
+                throw new Error('This email address has been blocked from ProjectDesk');
+              }
+              const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
               if (!user || !user.passwordHash) return null;
               const ok = await bcrypt.compare(credentials.password, user.passwordHash);
               if (!ok) return null;
@@ -57,6 +62,14 @@ export const authOptions = {
       : []),
   ],
   callbacks: {
+    async signIn({ user, profile }: any) {
+      const email = normalizeEmail(user?.email || profile?.email);
+      if (email && (await isEmailBlocked(email))) {
+        throw new Error('This email address has been blocked from ProjectDesk');
+      }
+
+      return true;
+    },
     async jwt({ token, user }: any) {
       if (user) {
         token.id = (user as any).id ?? token.id;
@@ -78,32 +91,54 @@ export const authOptions = {
           typeof (user as any).sponsorSubscriptionInactive === 'boolean'
             ? (user as any).sponsorSubscriptionInactive
             : token.sponsorSubscriptionInactive ?? false;
-      } else if (!token.subscriptionType && token.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: Number(token.id) },
-          select: {
-            subscriptionType: true,
-            subscriptionStartedAt: true,
-            subscriptionExpiresAt: true,
-            sponsorId: true,
-            sponsorSubscriptionInactive: true,
-          },
-        });
-        if (dbUser) {
-          token.subscriptionType = dbUser.subscriptionType;
-          token.subscriptionStartedAt = dbUser.subscriptionStartedAt
-            ? dbUser.subscriptionStartedAt.toISOString()
-            : null;
-          token.subscriptionExpiresAt = dbUser.subscriptionExpiresAt
-            ? dbUser.subscriptionExpiresAt.toISOString()
-            : null;
-          token.sponsorId = dbUser.sponsorId ?? null;
-          token.sponsorSubscriptionInactive = dbUser.sponsorSubscriptionInactive ?? false;
-        }
       }
+
+      const userId = Number(token.id ?? token.sub);
+      if (!userId) {
+        return token;
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          subscriptionType: true,
+          subscriptionStartedAt: true,
+          subscriptionExpiresAt: true,
+          sponsorId: true,
+          sponsorSubscriptionInactive: true,
+        },
+      });
+
+      if (!dbUser) {
+        return {};
+      }
+
+      token.id = dbUser.id;
+      token.sub = String(dbUser.id);
+      token.role = dbUser.role;
+      token.name = dbUser.name ?? dbUser.email;
+      token.email = dbUser.email;
+      token.subscriptionType = dbUser.subscriptionType;
+      token.subscriptionStartedAt = dbUser.subscriptionStartedAt
+        ? dbUser.subscriptionStartedAt.toISOString()
+        : null;
+      token.subscriptionExpiresAt = dbUser.subscriptionExpiresAt
+        ? dbUser.subscriptionExpiresAt.toISOString()
+        : null;
+      token.sponsorId = dbUser.sponsorId ?? null;
+      token.sponsorSubscriptionInactive = dbUser.sponsorSubscriptionInactive ?? false;
+
       return token;
     },
     async session({ session, token }: any) {
+      if (!token?.id) {
+        return null;
+      }
+
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;

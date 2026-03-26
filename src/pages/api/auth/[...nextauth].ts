@@ -6,6 +6,7 @@ import { compare } from "bcryptjs";
 import { generateToken, tokenExpiry } from "@/lib/tokens";
 import { sendEmail } from "@/lib/mailer";
 import { SubscriptionType } from "@prisma/client";
+import { isEmailBlocked, normalizeEmail } from "@/lib/blockedEmails";
 
 export const authOptions = {
   adapter: PrismaAdapter(prisma), // ✅ Added adapter
@@ -17,8 +18,14 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        const normalizedEmail = normalizeEmail(credentials?.email);
+        if (!normalizedEmail) throw new Error("No user found");
+        if (await isEmailBlocked(normalizedEmail)) {
+          throw new Error("This email address has been blocked from ProjectDesk");
+        }
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials?.email },
+          where: { email: normalizedEmail },
         });
 
         if (!user || !user.passwordHash) throw new Error("No user found");
@@ -81,7 +88,19 @@ export const authOptions = {
   },
 
   callbacks: {
+    async signIn({ user, profile }: any) {
+      const email = normalizeEmail(user?.email || profile?.email);
+      if (email && (await isEmailBlocked(email))) {
+        throw new Error("This email address has been blocked from ProjectDesk");
+      }
+
+      return true;
+    },
     async session({ session, token }: any) {
+      if (!token?.id) {
+        return null;
+      }
+
       if (session.user) {
         session.user.id = token.id ? Number(token.id) : undefined;
         session.user.role = token.role as string;
@@ -103,7 +122,8 @@ export const authOptions = {
     },
     async jwt({ token, user }: any) {
       if (user) {
-        token.id = user.id;
+        token.id = typeof user.id === "number" ? user.id : Number(user.id ?? token.id ?? token.sub);
+        token.sub = token.id ? String(token.id) : token.sub;
         token.role = user.role;
         token.name = user.name;
         token.email = user.email;
@@ -122,6 +142,46 @@ export const authOptions = {
             : null;
         token.sponsorSubscriptionInactive = user.sponsorSubscriptionInactive ?? false;
       }
+
+      const userId = Number(token.id ?? token.sub);
+      if (!userId) {
+        return token;
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          subscriptionType: true,
+          subscriptionStartedAt: true,
+          subscriptionExpiresAt: true,
+          sponsorId: true,
+          sponsorSubscriptionInactive: true,
+        },
+      });
+
+      if (!dbUser) {
+        return {};
+      }
+
+      token.id = dbUser.id;
+      token.sub = String(dbUser.id);
+      token.role = dbUser.role;
+      token.name = dbUser.name;
+      token.email = dbUser.email;
+      token.subscriptionType = dbUser.subscriptionType;
+      token.subscriptionStartedAt = dbUser.subscriptionStartedAt
+        ? dbUser.subscriptionStartedAt.toISOString()
+        : null;
+      token.subscriptionExpiresAt = dbUser.subscriptionExpiresAt
+        ? dbUser.subscriptionExpiresAt.toISOString()
+        : null;
+      token.sponsorId = dbUser.sponsorId ?? null;
+      token.sponsorSubscriptionInactive = dbUser.sponsorSubscriptionInactive ?? false;
+
       return token;
     },
   },
