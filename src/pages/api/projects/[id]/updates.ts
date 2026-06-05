@@ -4,6 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
 import { authOptions } from "../../auth/[...nextauth]";
 
+function parseUpdateDate(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const trimmed = value.trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+    ? new Date(`${trimmed}T12:00:00.000Z`)
+    : new Date(trimmed);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
 
@@ -48,6 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : "";
     const notifyAll =
       req.body?.notifyAll === false ? false : true;
+    const updateDate = parseUpdateDate(req.body?.updateDate);
 
     if (!title) {
       return res.status(400).json({ error: "Update title is required" });
@@ -75,6 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           title,
           description: description || null,
           notifyAll,
+          ...(updateDate ? { createdAt: updateDate } : {}),
           projectId: project.id,
           userId: Number(session.user.id),
         },
@@ -140,6 +152,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  res.setHeader("Allow", ["GET", "POST"]);
+  if (req.method === "PUT") {
+    const session = (await getServerSession(req, res, authOptions as any)) as any;
+    if (!session?.user?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const updateId = Number(req.body?.id);
+    const title =
+      typeof req.body?.title === "string" ? req.body.title.trim() : "";
+    const description =
+      typeof req.body?.description === "string"
+        ? req.body.description.trim()
+        : "";
+    const updateDate = parseUpdateDate(req.body?.updateDate);
+
+    if (!Number.isInteger(updateId) || updateId <= 0) {
+      return res.status(400).json({ error: "Invalid update ID" });
+    }
+
+    if (!title) {
+      return res.status(400).json({ error: "Update title is required" });
+    }
+
+    if (!updateDate) {
+      return res.status(400).json({ error: "Update date is required" });
+    }
+
+    try {
+      const existingUpdate = await prisma.projectUpdate.findUnique({
+        where: { id: updateId },
+        select: { id: true, projectId: true, userId: true },
+      });
+
+      if (!existingUpdate || existingUpdate.projectId !== Number(id)) {
+        return res.status(404).json({ error: "Project update not found" });
+      }
+
+      if (existingUpdate.userId !== Number(session.user.id)) {
+        return res.status(403).json({ error: "Only the update author can edit this update" });
+      }
+
+      const update = await prisma.projectUpdate.update({
+        where: { id: updateId },
+        data: {
+          title,
+          description: description || null,
+          createdAt: updateDate,
+        },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      });
+
+      return res.status(200).json({ update });
+    } catch (error) {
+      console.error("Error updating project update:", error);
+      return res.status(500).json({ error: "Failed to update project update" });
+    }
+  }
+
+  res.setHeader("Allow", ["GET", "POST", "PUT"]);
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }

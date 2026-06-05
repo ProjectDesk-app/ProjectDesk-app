@@ -6,8 +6,10 @@ import { toast, Toaster } from "react-hot-toast";
 import { useMemo, useState } from "react";
 import { LoadingState } from "@/components/LoadingState";
 import { getProjectLeadLabel } from "@/lib/projectLabels";
+import { useSession } from "next-auth/react";
 import {
   ExclamationTriangleIcon,
+  PencilSquareIcon,
   PlusIcon,
   QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -38,6 +40,7 @@ export default function ProjectOverview() {
   const router = useRouter();
   const { id: rawId } = router.query;
   const projectId = Array.isArray(rawId) ? rawId[0] : rawId;
+  const { data: session } = useSession();
 
   const { data: project, error, mutate } = useSWR(
     projectId ? `/api/projects/${projectId}` : null,
@@ -66,8 +69,10 @@ export default function ProjectOverview() {
   const [isSendingUpdate, setIsSendingUpdate] = useState(false);
   const [showStatusInfo, setShowStatusInfo] = useState(false);
   const [showAddUpdateModal, setShowAddUpdateModal] = useState(false);
+  const [editingUpdateId, setEditingUpdateId] = useState<number | null>(null);
   const [updateTitle, setUpdateTitle] = useState("");
   const [updateDescription, setUpdateDescription] = useState("");
+  const [updateDate, setUpdateDate] = useState("");
   const [notifyAllMembers, setNotifyAllMembers] = useState(true);
   const [isSavingUpdate, setIsSavingUpdate] = useState(false);
 
@@ -101,6 +106,15 @@ export default function ProjectOverview() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const formatDateInputValue = (value?: string | null) => {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   };
 
   const pluralize = (count: number, noun: string) =>
@@ -307,12 +321,38 @@ export default function ProjectOverview() {
     : Array.isArray(updatesData)
     ? updatesData
     : [];
+  const currentUserIdRaw = (session?.user as any)?.id;
+  const currentUserId =
+    typeof currentUserIdRaw === "number"
+      ? currentUserIdRaw
+      : Number(currentUserIdRaw);
+  const canResolveCurrentUser = !Number.isNaN(currentUserId);
 
   const openAddUpdateModal = () => {
+    setEditingUpdateId(null);
     setUpdateTitle("");
     setUpdateDescription("");
+    setUpdateDate(formatDateInputValue());
     setNotifyAllMembers(true);
     setShowAddUpdateModal(true);
+  };
+
+  const openEditUpdateModal = (entry: any) => {
+    setEditingUpdateId(entry.id);
+    setUpdateTitle(entry.title || "");
+    setUpdateDescription(entry.description || "");
+    setUpdateDate(formatDateInputValue(entry.createdAt));
+    setNotifyAllMembers(Boolean(entry.notifyAll));
+    setShowAddUpdateModal(true);
+  };
+
+  const closeUpdateModal = () => {
+    setShowAddUpdateModal(false);
+    setEditingUpdateId(null);
+    setUpdateTitle("");
+    setUpdateDescription("");
+    setUpdateDate("");
+    setNotifyAllMembers(true);
   };
 
   const submitProjectUpdate = async (e: React.FormEvent) => {
@@ -328,12 +368,15 @@ export default function ProjectOverview() {
 
     setIsSavingUpdate(true);
     try {
+      const isEditingUpdate = editingUpdateId !== null;
       const res = await fetch(`/api/projects/${projectId}/updates`, {
-        method: "POST",
+        method: isEditingUpdate ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: editingUpdateId,
           title: updateTitle.trim(),
           description: updateDescription.trim(),
+          updateDate,
           notifyAll: notifyAllMembers,
         }),
       });
@@ -349,14 +392,12 @@ export default function ProjectOverview() {
         throw new Error(payload?.error || "Failed to post update");
       }
 
-      toast.success("Project update added");
-      setShowAddUpdateModal(false);
-      setUpdateTitle("");
-      setUpdateDescription("");
+      toast.success(isEditingUpdate ? "Project update saved" : "Project update added");
+      closeUpdateModal();
       if (mutateUpdates) await mutateUpdates();
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "Could not add update");
+      toast.error(err instanceof Error ? err.message : "Could not save update");
     } finally {
       setIsSavingUpdate(false);
     }
@@ -717,6 +758,16 @@ export default function ProjectOverview() {
                                     • {formatDateTime(entry.createdAt)}
                                   </p>
                                 </div>
+                                {canResolveCurrentUser && entry.user?.id === currentUserId && (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
+                                    onClick={() => openEditUpdateModal(entry)}
+                                  >
+                                    <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
+                                    Edit
+                                  </button>
+                                )}
                               </div>
                               <p className="mt-2 text-sm text-gray-700 whitespace-pre-line">
                                 {entry.description || "No additional details provided."}
@@ -864,10 +915,12 @@ export default function ProjectOverview() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-lg rounded-md bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900">
-              Post project update
+              {editingUpdateId === null ? "Post project update" : "Edit project update"}
             </h3>
             <p className="mt-1 text-sm text-gray-600">
-              Summarize the latest milestone or win so the whole team stays in the loop.
+              {editingUpdateId === null
+                ? "Summarize the latest milestone or win so the whole team stays in the loop."
+                : "Update the details and date shown in the project timeline."}
             </p>
             <form onSubmit={submitProjectUpdate} className="mt-4 space-y-4">
               <div>
@@ -887,6 +940,19 @@ export default function ProjectOverview() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-800">
+                  Update date
+                </label>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+                  value={updateDate}
+                  onChange={(e) => setUpdateDate(e.target.value)}
+                  required
+                  disabled={isSavingUpdate}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-800">
                   Update description
                 </label>
                 <textarea
@@ -898,28 +964,30 @@ export default function ProjectOverview() {
                   disabled={isSavingUpdate}
                 />
               </div>
-              <label className="flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={notifyAllMembers}
-                  onChange={(e) => setNotifyAllMembers(e.target.checked)}
-                  disabled={isSavingUpdate}
-                />
-                <span>
-                  <span className="font-medium text-gray-900">
-                    Email all team members
+              {editingUpdateId === null && (
+                <label className="flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={notifyAllMembers}
+                    onChange={(e) => setNotifyAllMembers(e.target.checked)}
+                    disabled={isSavingUpdate}
+                  />
+                  <span>
+                    <span className="font-medium text-gray-900">
+                      Email all team members
+                    </span>
+                    <span className="block text-xs text-gray-600">
+                      Send an email to students, collaborators, and supervisors when this update is posted.
+                    </span>
                   </span>
-                  <span className="block text-xs text-gray-600">
-                    Send an email to students, collaborators, and supervisors when this update is posted.
-                  </span>
-                </span>
-              </label>
+                </label>
+              )}
               <div className="flex flex-col sm:flex-row sm:justify-end sm:space-x-3 gap-3">
                 <button
                   type="button"
                   className="w-full sm:w-auto rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                  onClick={() => setShowAddUpdateModal(false)}
+                  onClick={closeUpdateModal}
                   disabled={isSavingUpdate}
                 >
                   Cancel
@@ -929,7 +997,13 @@ export default function ProjectOverview() {
                   className="w-full sm:w-auto rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   disabled={isSavingUpdate}
                 >
-                  {isSavingUpdate ? "Posting..." : "Add update"}
+                  {isSavingUpdate
+                    ? editingUpdateId === null
+                      ? "Posting..."
+                      : "Saving..."
+                    : editingUpdateId === null
+                    ? "Add update"
+                    : "Save update"}
                 </button>
               </div>
             </form>
