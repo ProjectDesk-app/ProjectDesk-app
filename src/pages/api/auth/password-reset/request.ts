@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { generateToken, tokenExpiry } from "@/lib/tokens";
 import { sendEmail } from "@/lib/mailer";
+import { isEmailBlocked } from "@/lib/blockedEmails";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -16,6 +17,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!normalizedEmail || !EMAIL_REGEX.test(normalizedEmail)) {
     return res.status(400).json({ error: "A valid email address is required" });
+  }
+  if (await isEmailBlocked(normalizedEmail)) {
+    return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });
   }
 
   const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });

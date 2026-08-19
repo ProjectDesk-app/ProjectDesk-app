@@ -91,6 +91,12 @@ export default function SignInPage() {
             </Link>
           </p>
         </div>
+        <footer className="border-t border-gray-200 pt-4 text-center text-sm text-gray-500">
+          Need help?{" "}
+          <Link href="/contact" className="font-semibold text-blue-600 hover:underline">
+            Contact us
+          </Link>
+        </footer>
       </div>
     </Layout>
   );

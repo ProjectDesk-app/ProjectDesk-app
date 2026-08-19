@@ -126,9 +126,9 @@ export default function AdminDashboard() {
         filters: ["SUBSCRIBED", "ADMIN_APPROVED"],
       },
       {
-        label: "Free trials",
+        label: "Beta review",
         value: subscriptionMetrics?.totals.freeTrials ?? null,
-        helper: "Supervisors still in their trial window",
+        helper: "Supervisors awaiting admin-approved access",
         filters: ["FREE_TRIAL"],
       },
       {
@@ -626,7 +626,7 @@ export default function AdminDashboard() {
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-4 text-sm text-gray-500">No free trials ending within the next week.</p>
+                    <p className="mt-4 text-sm text-gray-500">No beta access reviews due within the next week.</p>
                   )}
                 </div>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">

@@ -2,10 +2,18 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
 import { getProjectLeadLabel } from "@/lib/projectLabels";
+import { getServerSession } from "next-auth/next";
+import { UserRole } from "@prisma/client";
+import { authOptions } from "../../auth/[...nextauth]";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST")
     return res.status(405).json({ error: "Method not allowed" });
+
+  const session = (await getServerSession(req, res, authOptions as any)) as any;
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   try {
     const { id } = req.query;
@@ -20,6 +28,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (!project) return res.status(404).json({ error: "Project not found" });
+    if (session.user.role !== UserRole.ADMIN && project.supervisorId !== Number(session.user.id)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
 
     const allMembers = [
       ...project.students.map((s) => ({ id: s.id, name: s.name, email: s.email })),

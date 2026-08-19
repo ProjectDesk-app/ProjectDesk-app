@@ -28,6 +28,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: "User not found" });
   }
 
+  if (await isEmailBlocked(user.email)) {
+    await prisma.emailVerification.delete({ where: { token } });
+    if (verification.newEmail) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { pendingEmail: null },
+      });
+    }
+    return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });
+  }
+
   const now = new Date();
   let message = "Email verified";
 

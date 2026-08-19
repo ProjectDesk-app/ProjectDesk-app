@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 import { sendEmail } from "@/lib/mailer";
 import { prisma } from "@/lib/prisma";
+import { isEmailBlocked } from "@/lib/blockedEmails";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_ROLES = new Set(["SUPERVISOR", "STUDENT", "COLLABORATOR"]);
@@ -31,6 +32,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (!normalizedEmail || !EMAIL_REGEX.test(normalizedEmail)) {
     return res.status(400).json({ error: "A valid email is required" });
+  }
+  if (await isEmailBlocked(normalizedEmail)) {
+    return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });
   }
   if (!VALID_ROLES.has(requestedRole)) {
     return res.status(400).json({ error: "Account type is invalid" });

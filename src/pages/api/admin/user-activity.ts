@@ -35,6 +35,19 @@ const toActivityItem = (
   href,
 });
 
+async function safeActivityQuery<T>(
+  label: string,
+  query: Promise<T>,
+  fallback: T
+): Promise<T> {
+  try {
+    return await query;
+  } catch (error) {
+    console.error(`Failed to load user activity section (${label}):`, error);
+    return fallback;
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
@@ -66,227 +79,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: "User not found" });
   }
 
-  const pendingRequestWhere = {
-    supervisorId: userId,
-    sponsorId: null,
-    role: { in: [UserRole.STUDENT, UserRole.COLLABORATOR] },
-  };
+  try {
+    const pendingRequestWhere = {
+      supervisorId: userId,
+      sponsorId: null,
+      role: { in: [UserRole.STUDENT, UserRole.COLLABORATOR] },
+    };
 
-  const [
-    projectsCreatedCount,
-    sponsoredAccountsCount,
-    pendingRequestsCount,
-    taskSetsCreatedCount,
-    projectUpdatesCount,
-    filesUploadedCount,
-    commentsCount,
-    latestProjects,
-    latestSponsoredUsers,
-    latestPendingRequests,
-    latestTaskSets,
-    latestProjectUpdates,
-    latestProjectFiles,
-    latestComments,
-  ] = await Promise.all([
-    prisma.project.count({ where: { supervisorId: userId } }),
-    prisma.user.count({ where: { sponsorId: userId } }),
-    prisma.user.count({ where: pendingRequestWhere }),
-    prisma.taskSet.count({ where: { supervisorId: userId } }),
-    prisma.projectUpdate.count({ where: { userId } }),
-    prisma.projectFile.count({ where: { userId } }),
-    prisma.comment.count({ where: { userId } }),
-    prisma.project.findMany({
-      where: { supervisorId: userId },
-      orderBy: { createdAt: "desc" },
-      take: RECENT_LIMIT,
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-      },
-    }),
-    prisma.user.findMany({
-      where: { sponsorId: userId },
-      orderBy: { createdAt: "desc" },
-      take: RECENT_LIMIT,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-      },
-    }),
-    prisma.user.findMany({
-      where: pendingRequestWhere,
-      orderBy: { createdAt: "desc" },
-      take: RECENT_LIMIT,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-      },
-    }),
-    prisma.taskSet.findMany({
-      where: { supervisorId: userId },
-      orderBy: { createdAt: "desc" },
-      take: RECENT_LIMIT,
-      select: {
-        id: true,
-        name: true,
-        createdAt: true,
-      },
-    }),
-    prisma.projectUpdate.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: RECENT_LIMIT,
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        project: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-      },
-    }),
-    prisma.projectFile.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: RECENT_LIMIT,
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        createdAt: true,
-        project: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-      },
-    }),
-    prisma.comment.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: RECENT_LIMIT,
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
-        task: {
-          select: {
-            id: true,
-            title: true,
-            project: {
-              select: {
-                id: true,
-                title: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-  ]);
-
-  const recentActivity = [
-    toActivityItem(
-      `account-${targetUser.id}`,
-      "ACCOUNT_CREATED",
-      "Created their ProjectDesk account",
-      targetUser.createdAt,
-      `${targetUser.role} account`,
-      null
-    ),
-    ...latestProjects.map((project) =>
-      toActivityItem(
-        `project-${project.id}`,
-        "PROJECT_CREATED",
-        `Created project "${project.title}"`,
-        project.createdAt,
-        null,
-        `/projects/${project.id}`
-      )
-    ),
-    ...latestSponsoredUsers.map((user) =>
-      toActivityItem(
-        `sponsored-${user.id}`,
-        "SPONSORED_ACCOUNT_JOINED",
-        `Sponsored account joined: ${user.name || user.email}`,
-        user.createdAt,
-        `${user.role} • ${user.email}`,
-        null
-      )
-    ),
-    ...latestPendingRequests.map((user) =>
-      toActivityItem(
-        `request-${user.id}`,
-        "SPONSORSHIP_REQUEST",
-        `Received sponsorship request from ${user.name || user.email}`,
-        user.createdAt,
-        `${user.role} • ${user.email}`,
-        null
-      )
-    ),
-    ...latestTaskSets.map((taskSet) =>
-      toActivityItem(
-        `taskset-${taskSet.id}`,
-        "TASK_SET_CREATED",
-        `Created task set "${taskSet.name}"`,
-        taskSet.createdAt
-      )
-    ),
-    ...latestProjectUpdates.map((update) =>
-      toActivityItem(
-        `update-${update.id}`,
-        "PROJECT_UPDATE",
-        `Posted update "${update.title}"`,
-        update.createdAt,
-        update.project.title,
-        `/projects/${update.project.id}`
-      )
-    ),
-    ...latestProjectFiles.map((file) =>
-      toActivityItem(
-        `file-${file.id}`,
-        "PROJECT_FILE",
-        `Added ${file.type === "FOLDER" ? "folder" : "file"} "${file.name}"`,
-        file.createdAt,
-        file.project.title,
-        `/projects/${file.project.id}/files`
-      )
-    ),
-    ...latestComments.map((comment) =>
-      toActivityItem(
-        `comment-${comment.id}`,
-        "COMMENT_POSTED",
-        `Commented on "${comment.task.title}"`,
-        comment.createdAt,
-        `${comment.task.project.title} • ${truncate(comment.content)}`,
-        `/tasks/${comment.task.id}`
-      )
-    ),
-  ]
-    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
-    .slice(0, 25);
-
-  return res.status(200).json({
-    user: {
-      id: targetUser.id,
-      name: targetUser.name,
-      email: targetUser.email,
-      role: targetUser.role,
-      createdAt: targetUser.createdAt.toISOString(),
-    },
-    summary: {
-      accountCreatedAt: targetUser.createdAt.toISOString(),
+    const [
       projectsCreatedCount,
       sponsoredAccountsCount,
       pendingRequestsCount,
@@ -294,21 +94,267 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       projectUpdatesCount,
       filesUploadedCount,
       commentsCount,
-    },
-    sponsoredUsers: latestSponsoredUsers.map((user) => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt.toISOString(),
-    })),
-    pendingRequests: latestPendingRequests.map((user) => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt.toISOString(),
-    })),
-    recentActivity,
-  });
+      latestProjects,
+      latestSponsoredUsers,
+      latestPendingRequests,
+      latestTaskSets,
+      latestProjectUpdates,
+      latestProjectFiles,
+      latestComments,
+    ] = await Promise.all([
+      safeActivityQuery("project count", prisma.project.count({ where: { supervisorId: userId } }), 0),
+      safeActivityQuery("sponsored account count", prisma.user.count({ where: { sponsorId: userId } }), 0),
+      safeActivityQuery("pending request count", prisma.user.count({ where: pendingRequestWhere }), 0),
+      safeActivityQuery("task set count", prisma.taskSet.count({ where: { supervisorId: userId } }), 0),
+      safeActivityQuery("project update count", prisma.projectUpdate.count({ where: { userId } }), 0),
+      safeActivityQuery("project file count", prisma.projectFile.count({ where: { userId } }), 0),
+      safeActivityQuery("comment count", prisma.comment.count({ where: { userId } }), 0),
+      safeActivityQuery(
+        "latest projects",
+        prisma.project.findMany({
+          where: { supervisorId: userId },
+          orderBy: { createdAt: "desc" },
+          take: RECENT_LIMIT,
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+          },
+        }),
+        []
+      ),
+      safeActivityQuery(
+        "latest sponsored users",
+        prisma.user.findMany({
+          where: { sponsorId: userId },
+          orderBy: { createdAt: "desc" },
+          take: RECENT_LIMIT,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+          },
+        }),
+        []
+      ),
+      safeActivityQuery(
+        "latest pending requests",
+        prisma.user.findMany({
+          where: pendingRequestWhere,
+          orderBy: { createdAt: "desc" },
+          take: RECENT_LIMIT,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+          },
+        }),
+        []
+      ),
+      safeActivityQuery(
+        "latest task sets",
+        prisma.taskSet.findMany({
+          where: { supervisorId: userId },
+          orderBy: { createdAt: "desc" },
+          take: RECENT_LIMIT,
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
+          },
+        }),
+        []
+      ),
+      safeActivityQuery(
+        "latest project updates",
+        prisma.projectUpdate.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: RECENT_LIMIT,
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            project: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        }),
+        []
+      ),
+      safeActivityQuery(
+        "latest project files",
+        prisma.projectFile.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: RECENT_LIMIT,
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            createdAt: true,
+            project: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        }),
+        []
+      ),
+      safeActivityQuery(
+        "latest comments",
+        prisma.comment.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: RECENT_LIMIT,
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            task: {
+              select: {
+                id: true,
+                title: true,
+                project: {
+                  select: {
+                    id: true,
+                    title: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+        []
+      ),
+    ]);
+
+    const recentActivity = [
+      toActivityItem(
+        `account-${targetUser.id}`,
+        "ACCOUNT_CREATED",
+        "Created their ProjectDesk account",
+        targetUser.createdAt,
+        `${targetUser.role} account`,
+        null
+      ),
+      ...latestProjects.map((project) =>
+        toActivityItem(
+          `project-${project.id}`,
+          "PROJECT_CREATED",
+          `Created project "${project.title}"`,
+          project.createdAt,
+          null,
+          `/projects/${project.id}`
+        )
+      ),
+      ...latestSponsoredUsers.map((user) =>
+        toActivityItem(
+          `sponsored-${user.id}`,
+          "SPONSORED_ACCOUNT_JOINED",
+          `Sponsored account joined: ${user.name || user.email}`,
+          user.createdAt,
+          `${user.role} • ${user.email}`,
+          null
+        )
+      ),
+      ...latestPendingRequests.map((user) =>
+        toActivityItem(
+          `request-${user.id}`,
+          "SPONSORSHIP_REQUEST",
+          `Received sponsorship request from ${user.name || user.email}`,
+          user.createdAt,
+          `${user.role} • ${user.email}`,
+          null
+        )
+      ),
+      ...latestTaskSets.map((taskSet) =>
+        toActivityItem(
+          `taskset-${taskSet.id}`,
+          "TASK_SET_CREATED",
+          `Created task set "${taskSet.name}"`,
+          taskSet.createdAt
+        )
+      ),
+      ...latestProjectUpdates.map((update) =>
+        toActivityItem(
+          `update-${update.id}`,
+          "PROJECT_UPDATE",
+          `Posted update "${update.title}"`,
+          update.createdAt,
+          update.project?.title ?? "Project unavailable",
+          update.project ? `/projects/${update.project.id}` : null
+        )
+      ),
+      ...latestProjectFiles.map((file) =>
+        toActivityItem(
+          `file-${file.id}`,
+          "PROJECT_FILE",
+          `Added ${file.type === "FOLDER" ? "folder" : "file"} "${file.name}"`,
+          file.createdAt,
+          file.project?.title ?? "Project unavailable",
+          file.project ? `/projects/${file.project.id}/files` : null
+        )
+      ),
+      ...latestComments.map((comment) =>
+        toActivityItem(
+          `comment-${comment.id}`,
+          "COMMENT_POSTED",
+          `Commented on "${comment.task?.title ?? "a deleted task"}"`,
+          comment.createdAt,
+          `${comment.task?.project?.title ?? "Project unavailable"} • ${truncate(comment.content)}`,
+          comment.task ? `/tasks/${comment.task.id}` : null
+        )
+      ),
+    ]
+      .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+      .slice(0, 25);
+
+    return res.status(200).json({
+      user: {
+        id: targetUser.id,
+        name: targetUser.name,
+        email: targetUser.email,
+        role: targetUser.role,
+        createdAt: targetUser.createdAt.toISOString(),
+      },
+      summary: {
+        accountCreatedAt: targetUser.createdAt.toISOString(),
+        projectsCreatedCount,
+        sponsoredAccountsCount,
+        pendingRequestsCount,
+        taskSetsCreatedCount,
+        projectUpdatesCount,
+        filesUploadedCount,
+        commentsCount,
+      },
+      sponsoredUsers: latestSponsoredUsers.map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt.toISOString(),
+      })),
+      pendingRequests: latestPendingRequests.map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt.toISOString(),
+      })),
+      recentActivity,
+    });
+  } catch (error) {
+    console.error("Failed to load user activity:", error);
+    return res.status(500).json({ error: "Failed to load user activity" });
+  }
 }

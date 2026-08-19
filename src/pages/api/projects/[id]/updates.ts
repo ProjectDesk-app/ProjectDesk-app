@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
 import { authOptions } from "../../auth/[...nextauth]";
+import { UserRole } from "@prisma/client";
 
 function parseUpdateDate(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -14,6 +15,25 @@ function parseUpdateDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function canAccessProject(
+  project: {
+    supervisorId: number | null;
+    students?: { id: number }[];
+    collaborators?: { id: number }[];
+    members?: { userId: number }[];
+  },
+  userId: number,
+  userRole?: string
+) {
+  return (
+    userRole === UserRole.ADMIN ||
+    project.supervisorId === userId ||
+    project.students?.some((user) => user.id === userId) ||
+    project.collaborators?.some((user) => user.id === userId) ||
+    project.members?.some((member) => member.userId === userId)
+  );
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
 
@@ -21,8 +41,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Invalid project ID" });
   }
 
+  const session = (await getServerSession(req, res, authOptions as any)) as any;
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const sessionUserId = Number(session.user.id);
+
   if (req.method === "GET") {
     try {
+      const project = await prisma.project.findUnique({
+        where: { id: Number(id) },
+        include: {
+          students: { select: { id: true } },
+          collaborators: { select: { id: true } },
+          members: { select: { userId: true } },
+        },
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (!canAccessProject(project, sessionUserId, session.user.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       const updates = await prisma.projectUpdate.findMany({
         where: { projectId: Number(id) },
         orderBy: { createdAt: "desc" },
@@ -45,11 +87,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
-    const session = (await getServerSession(req, res, authOptions as any)) as any;
-    if (!session?.user?.id) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     const title =
       typeof req.body?.title === "string" ? req.body.title.trim() : "";
     const description =
@@ -80,6 +117,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
+      if (!canAccessProject(project, sessionUserId, session.user.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       const update = await prisma.projectUpdate.create({
         data: {
@@ -88,7 +128,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           notifyAll,
           ...(updateDate ? { createdAt: updateDate } : {}),
           projectId: project.id,
-          userId: Number(session.user.id),
+          userId: sessionUserId,
         },
         include: {
           user: {
@@ -98,7 +138,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       if (notifyAll) {
-        const actorId = Number(session.user.id);
+        const actorId = sessionUserId;
         const recipientMap = new Map<number, { id: number; email: string | null }>();
 
         const addRecipient = (user?: { id: number; email: string | null } | null) => {
@@ -153,11 +193,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "PUT") {
-    const session = (await getServerSession(req, res, authOptions as any)) as any;
-    if (!session?.user?.id) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     const updateId = Number(req.body?.id);
     const title =
       typeof req.body?.title === "string" ? req.body.title.trim() : "";
@@ -189,7 +224,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({ error: "Project update not found" });
       }
 
-      if (existingUpdate.userId !== Number(session.user.id)) {
+      if (existingUpdate.userId !== sessionUserId) {
         return res.status(403).json({ error: "Only the update author can edit this update" });
       }
 

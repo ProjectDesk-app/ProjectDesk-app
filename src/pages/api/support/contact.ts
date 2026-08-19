@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { sendEmail } from "@/lib/mailer";
+import { isEmailBlocked } from "@/lib/blockedEmails";
 
 type CaptchaPayload = {
   answer?: unknown;
@@ -79,6 +80,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     !isValidEmail(trimmedEmail)
   ) {
     return res.status(400).json({ error: "A valid email is required" });
+  }
+  if (await isEmailBlocked(trimmedEmail.toLowerCase())) {
+    return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });
   }
 
   const contactType = typeof type === "string" && type.trim() ? type.trim() : "Contact";

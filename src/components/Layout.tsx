@@ -353,7 +353,7 @@ export default function Layout({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 text-left shadow-xl">
             <div className="space-y-2">
-              <h2 className="text-xl font-semibold text-gray-900">Free trial ended</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Beta access needs review</h2>
               <p className="text-sm text-gray-700">
                 Your ProjectDesk beta access needs review before you can continue sponsoring collaborators
                 and managing projects.

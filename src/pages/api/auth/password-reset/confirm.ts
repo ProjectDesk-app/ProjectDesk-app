@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
+import { isEmailBlocked } from "@/lib/blockedEmails";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -23,6 +24,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (resetToken.expiresAt < new Date()) {
     await prisma.passwordResetToken.delete({ where: { token } });
     return res.status(410).json({ error: "Token has expired" });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: resetToken.userId },
+    select: { email: true },
+  });
+  if (!user) {
+    await prisma.passwordResetToken.delete({ where: { token } });
+    return res.status(404).json({ error: "User not found" });
+  }
+  if (await isEmailBlocked(user.email)) {
+    await prisma.passwordResetToken.delete({ where: { token } });
+    return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });
   }
 
   const hashed = await hash(password, 10);
