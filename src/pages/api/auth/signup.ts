@@ -80,6 +80,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   });
 
+  if (!existing) {
+    return res.status(403).json({
+      error:
+        "ProjectDesk is currently a private beta. Please request an account and wait for an invitation before setting a password.",
+    });
+  }
+
   const passwordHash = await hash(password, 10);
 
   const token = generateToken(24);

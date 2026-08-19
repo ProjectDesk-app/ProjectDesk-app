@@ -38,7 +38,6 @@ export default function Layout({
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeModal, setActiveModal] = useState<AccountModalType | null>(null);
   const [showSponsorDetails, setShowSponsorDetails] = useState(false);
-  const [managingSubscription, setManagingSubscription] = useState(false);
   const [notifyingSponsor, setNotifyingSponsor] = useState(false);
   const userRole = (session?.user as any)?.role;
   const isAuthenticated = Boolean(session);
@@ -166,29 +165,6 @@ export default function Layout({
       setShowSponsorDetails(false);
     }
   }, [sponsorSubscriptionInactive]);
-
-  const handleManageSubscription = async () => {
-    if (managingSubscription) return;
-    setManagingSubscription(true);
-    try {
-      const res = await fetch("/api/supervisor/subscription/manage", {
-        method: "POST",
-      });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(payload?.error || "Unable to start subscription");
-      }
-      const redirectUrl = payload?.redirectUrl;
-      if (!redirectUrl) {
-        throw new Error("No redirect URL returned");
-      }
-      window.location.href = redirectUrl;
-    } catch (error: any) {
-      toast.error(error?.message || "Unable to manage subscription");
-    } finally {
-      setManagingSubscription(false);
-    }
-  };
 
   const handleNotifySponsor = async () => {
     if (!sponsorEmail || notifyingSponsor) return;
@@ -344,10 +320,10 @@ export default function Layout({
                   Sign in
                 </button>
                 <Link
-                  href="/signup"
+                  href="/request-account"
                   className="rounded-full border border-blue-600 px-4 py-1.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition"
                 >
-                  Create account
+                  Request account
                 </Link>
               </>
             )}
@@ -379,23 +355,15 @@ export default function Layout({
             <div className="space-y-2">
               <h2 className="text-xl font-semibold text-gray-900">Free trial ended</h2>
               <p className="text-sm text-gray-700">
-                Your ProjectDesk free trial has ended, so access is paused. Start a subscription to keep sponsoring collaborators
+                Your ProjectDesk beta access needs review before you can continue sponsoring collaborators
                 and managing projects.
               </p>
             </div>
             <div className="space-y-2 rounded-md bg-blue-50 p-4 text-sm text-blue-900">
               <p className="font-semibold">How to regain access</p>
-              <p>Continue to checkout to begin your paid subscription. Once active, your workspace unlocks automatically.</p>
+              <p>Contact the ProjectDesk administrator to move this account onto private beta access.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleManageSubscription}
-                disabled={managingSubscription}
-                className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-              >
-                {managingSubscription ? "Opening checkout..." : "Start subscription"}
-              </button>
               <button
                 type="button"
                 onClick={handleSignOut}
@@ -413,7 +381,7 @@ export default function Layout({
               </a>
             </div>
             <p className="text-xs text-gray-500">
-              Need more time? Reach out to the ProjectDesk team about extending your trial before subscribing.
+              ProjectDesk is currently operating as a private beta for invited users.
             </p>
           </div>
         </div>
@@ -425,23 +393,15 @@ export default function Layout({
             <div className="space-y-2">
               <h2 className="text-xl font-semibold text-gray-900">Subscription inactive</h2>
               <p className="text-sm text-gray-700">
-                Your ProjectDesk subscription is cancelled, so sponsoring collaborators and project tools are paused.
-                Use the button below to manage your subscription with GoCardless.
+                Your ProjectDesk access is inactive, so sponsoring collaborators and project tools are paused.
+                Contact the ProjectDesk administrator if you think this account should remain in the private beta.
               </p>
             </div>
             <div className="space-y-2 rounded-md bg-blue-50 p-4 text-sm text-blue-900">
               <p className="font-semibold">How to fix this</p>
-              <p>Restart the plan, update payment details, or approve the latest mandate from the GoCardless portal.</p>
+              <p>The administrator can review the account and restore beta access where appropriate.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleManageSubscription}
-                disabled={managingSubscription}
-                className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-              >
-                {managingSubscription ? "Opening GoCardless..." : "Manage subscription"}
-              </button>
               <button
                 type="button"
                 onClick={handleSignOut}
@@ -459,7 +419,7 @@ export default function Layout({
               </a>
             </div>
             <p className="text-xs text-gray-500">
-              Once billing is active again, refresh this page to regain full access. Sponsored users unlock automatically.
+              Once access is restored, refresh this page to regain full access.
             </p>
           </div>
         </div>

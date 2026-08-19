@@ -13,6 +13,7 @@ const REQUIRED_ENV_VARS = [
 ];
 
 const GC_ID_PATTERN = /^[A-Za-z0-9_-]{5,64}$/;
+const commercialBillingEnabled = process.env.COMMERCIAL_BILLING_ENABLED === "true";
 
 const ensureBillingEnv = () => {
   const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
@@ -35,6 +36,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (session.user.role !== "SUPERVISOR" && session.user.role !== "ADMIN") {
     return res.status(403).json({ error: "Access denied" });
+  }
+  if (!commercialBillingEnabled) {
+    return res.status(403).json({
+      error: "ProjectDesk is currently operating as a private beta. Paid subscriptions are not available.",
+    });
   }
 
   const rawFlowId = typeof req.body?.flowId === "string" ? req.body.flowId.trim() : "";

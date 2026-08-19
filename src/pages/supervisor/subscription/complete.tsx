@@ -8,7 +8,7 @@ type Status = "idle" | "processing" | "success" | "error";
 export default function SubscriptionCompletePage() {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("idle");
-  const [message, setMessage] = useState<string>("Finalising your subscription...");
+  const [message, setMessage] = useState<string>("Checking access status...");
   const [supportingInfo, setSupportingInfo] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function SubscriptionCompletePage() {
 
     if (!flowId) {
       setStatus("error");
-      setMessage("We couldn't find a GoCardless redirect flow to complete.");
+      setMessage("We couldn't find an access update to complete.");
       return;
     }
 
@@ -38,10 +38,10 @@ export default function SubscriptionCompletePage() {
         });
         const payload = await res.json().catch(() => null);
         if (!res.ok) {
-          throw new Error(payload?.error || "Unable to complete subscription setup");
+          throw new Error(payload?.error || "Unable to complete this access update");
         }
         setStatus("success");
-        setMessage("Subscription updated! You can manage sponsored accounts right away.");
+        setMessage("Access updated. You can manage sponsored accounts right away.");
         setSupportingInfo(
           `Subscription ID ${payload?.subscriptionId ?? "unknown"} · Status ${payload?.subscriptionStatus ?? "created"}`
         );
@@ -50,7 +50,7 @@ export default function SubscriptionCompletePage() {
         }, 4000);
       } catch (err: any) {
         setStatus("error");
-        setMessage(err?.message || "We couldn't finish setting up your subscription.");
+        setMessage(err?.message || "We couldn't finish this access update.");
       }
     };
 
@@ -68,15 +68,15 @@ export default function SubscriptionCompletePage() {
   };
 
   return (
-    <Layout title="Subscription status">
+    <Layout title="Access status">
       <div className="mx-auto max-w-md space-y-6 rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-        <h1 className="text-xl font-semibold text-gray-900">Updating subscription…</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Updating access...</h1>
         <p className={`rounded-md px-3 py-2 text-sm font-medium ${renderStatusAccent()}`}>{message}</p>
         {supportingInfo && <p className="text-xs text-gray-500">{supportingInfo}</p>}
         {status === "error" && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              You can retry the process from the supervisor dashboard. If the problem persists, contact support with
+              ProjectDesk is currently operating as a private beta. If the problem persists, contact support with
               the details above.
             </p>
             <div className="flex flex-col gap-2">

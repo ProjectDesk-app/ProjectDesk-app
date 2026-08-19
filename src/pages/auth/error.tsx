@@ -92,7 +92,7 @@ const EXACT_TEXT_MATCHES: Record<string, ErrorInfo> = {
   "no user found": {
     title: "Account not found",
     description: "We couldn't find an account with that email address.",
-    help: "Check for typos or create a new ProjectDesk account.",
+    help: "Check for typos or request access if you have not been invited yet.",
   },
   "invalid password": {
     title: "Incorrect password",
@@ -115,14 +115,14 @@ const EXACT_TEXT_MATCHES: Record<string, ErrorInfo> = {
     help: "Contact support if you think this happened in error.",
   },
   "subscription cancelled": {
-    title: "Subscription inactive",
-    description: "Your subscription is currently inactive.",
-    help: "Restart your subscription or contact support if this doesn't look right.",
+    title: "Access inactive",
+    description: "Your ProjectDesk access is currently inactive.",
+    help: "Contact the ProjectDesk administrator if this doesn't look right.",
   },
   "your free trial has ended": {
-    title: "Free trial complete",
-    description: "Your free trial has ended, so access is currently paused.",
-    help: "Start a subscription to keep using ProjectDesk, or contact us if you need more time.",
+    title: "Beta access needs review",
+    description: "Your current access period has ended, so access is paused.",
+    help: "Contact the ProjectDesk administrator if you should remain in the private beta.",
   },
 };
 

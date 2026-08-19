@@ -17,6 +17,7 @@ const baseUrl =
   process.env.NEXTAUTH_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   "http://localhost:3000";
+const commercialBillingEnabled = process.env.COMMERCIAL_BILLING_ENABLED === "true";
 
 function buildSessionToken() {
   return randomBytes(32).toString("hex");
@@ -49,6 +50,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
+    if (!commercialBillingEnabled) {
+      return res.status(403).json({
+        error: "ProjectDesk is currently operating as a private beta. Paid subscriptions are not available.",
+      });
+    }
+
     if (supervisor.subscriptionType === SubscriptionType.SUBSCRIBED && supervisor.goCardlessSubscriptionId) {
       return res.status(400).json({ error: "Subscription already active. Cancel it before starting a new one." });
     }

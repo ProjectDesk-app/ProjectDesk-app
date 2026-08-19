@@ -47,10 +47,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   });
 
+  const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const setupUrl = `${baseUrl.replace(/\/$/, "")}/signup`;
+
   await sendEmail(
     normalized,
     "You've been invited to ProjectDesk",
-    `Hello ${user.name || "there"},\n\nYou've been invited to join ProjectDesk.\nSign in or create your account using this email address to get started.\n\nThanks,\nProjectDesk`
+    `Hello ${user.name || "there"},\n\nYou've been invited to join ProjectDesk.\nUse the link below to set your password and activate your account with this email address:\n${setupUrl}\n\nThanks,\nProjectDesk`
   );
 
   return res.status(200).json({ ok: true });
