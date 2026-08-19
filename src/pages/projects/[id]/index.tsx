@@ -12,6 +12,7 @@ import {
   PencilSquareIcon,
   PlusIcon,
   QuestionMarkCircleIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 
 type PendingTask = {
@@ -64,6 +65,7 @@ export default function ProjectOverview() {
   const [isCompleting, setIsCompleting] = useState(false);
   const [isForceCompleting, setIsForceCompleting] = useState(false);
   const [isReactivating, setIsReactivating] = useState(false);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [isSendingUpdate, setIsSendingUpdate] = useState(false);
@@ -316,6 +318,47 @@ export default function ProjectOverview() {
     }
   };
 
+  const deleteProject = async () => {
+    if (!projectId || !isValidProjectId(projectId)) {
+      toast.error("Invalid project ID.");
+      return;
+    }
+    if (!project?.title) {
+      toast.error("Project details are still loading.");
+      return;
+    }
+
+    const confirmation = window.prompt(
+      `This will permanently delete "${project.title}" and all of its tasks, files, comments, updates, and notifications.\n\nType DELETE to confirm.`
+    );
+    if (confirmation !== "DELETE") return;
+
+    setIsDeletingProject(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "DELETE",
+      });
+      let payload: any = null;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = null;
+      }
+
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to delete project");
+      }
+
+      toast.success("Project deleted");
+      router.push("/dashboard");
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Could not delete project");
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
+
   const updates = Array.isArray(updatesData?.updates)
     ? updatesData.updates
     : Array.isArray(updatesData)
@@ -327,6 +370,7 @@ export default function ProjectOverview() {
       ? currentUserIdRaw
       : Number(currentUserIdRaw);
   const canResolveCurrentUser = !Number.isNaN(currentUserId);
+  const isAdmin = (session?.user as any)?.role === "ADMIN";
 
   const openAddUpdateModal = () => {
     setEditingUpdateId(null);
@@ -902,6 +946,16 @@ export default function ProjectOverview() {
                         disabled={isCompleting}
                       >
                         {isCompleting ? "Marking..." : "Mark as completed"}
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button
+                        className="inline-flex items-center justify-center gap-2 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={deleteProject}
+                        disabled={isDeletingProject}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                        {isDeletingProject ? "Deleting..." : "Permanently delete project"}
                       </button>
                     )}
                   </div>

@@ -253,5 +253,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  if (req.method === "DELETE") {
+    if (!isAdmin) {
+      return res.status(403).json({ error: "Only administrators can delete projects" });
+    }
+
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { id: true },
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const tasks = await prisma.task.findMany({
+        where: { projectId },
+        select: { id: true },
+      });
+      const taskIds = tasks.map((task) => task.id);
+
+      await prisma.$transaction(async (tx) => {
+        if (taskIds.length > 0) {
+          await tx.notification.deleteMany({
+            where: {
+              OR: [{ projectId }, { taskId: { in: taskIds } }],
+            },
+          });
+          await tx.comment.deleteMany({ where: { taskId: { in: taskIds } } });
+          await tx.task.updateMany({
+            where: { dependencyTaskId: { in: taskIds } },
+            data: { dependencyTaskId: null },
+          });
+          await tx.task.deleteMany({ where: { id: { in: taskIds } } });
+        } else {
+          await tx.notification.deleteMany({ where: { projectId } });
+        }
+
+        await tx.projectUpdate.deleteMany({ where: { projectId } });
+        await tx.projectFile.deleteMany({ where: { projectId } });
+        await tx.projectMember.deleteMany({ where: { projectId } });
+        await tx.project.update({
+          where: { id: projectId },
+          data: {
+            students: { set: [] },
+            collaborators: { set: [] },
+          },
+        });
+        await tx.project.delete({ where: { id: projectId } });
+      });
+
+      return res.status(200).json({ message: "Project deleted" });
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      return res.status(500).json({ error: "Failed to delete project" });
+    }
+  }
+
+  res.setHeader("Allow", ["GET", "PUT", "DELETE"]);
   return res.status(405).json({ error: "Method not allowed" });
 }
