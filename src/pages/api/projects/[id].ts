@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]";
 import { sendEmail } from "@/lib/mailer";
 import { SubscriptionType, UserRole } from "@prisma/client";
 import {
@@ -55,13 +57,26 @@ async function resolveMembers(inputs: MemberInput[] = [], role: "STUDENT" | "COL
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
+  const projectId = Number(id);
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({ error: "Invalid project ID" });
+  }
+
+  const session = (await getServerSession(req, res, authOptions as any)) as any;
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const sessionUserId = Number(session.user.id);
+  const isAdmin = session.user.role === UserRole.ADMIN;
 
   if (req.method === "PUT") {
     try {
-      const { title, description, startDate, endDate, category, members } = req.body;
+      const { title, description, startDate, endDate, category, members, supervisorId } = req.body;
 
       const existingProject = await prisma.project.findUnique({
-        where: { id: Number(id) },
+        where: { id: projectId },
         include: {
           students: true,
           collaborators: true,
@@ -71,6 +86,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!existingProject) {
         return res.status(404).json({ error: "Project not found" });
       }
+      if (!isAdmin && existingProject.supervisorId !== sessionUserId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const requestedSupervisorId = Number(supervisorId);
+      const nextSupervisorId =
+        isAdmin && Number.isInteger(requestedSupervisorId) && requestedSupervisorId > 0
+          ? requestedSupervisorId
+          : existingProject.supervisorId;
 
       const studentMembers = await resolveMembers(members?.students, "STUDENT");
       const collaboratorMembers = await resolveMembers(
@@ -79,9 +103,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
 
       const supervisorAccount = await prisma.user.findUnique({
-        where: { id: existingProject.supervisorId },
+        where: { id: nextSupervisorId },
         select: {
           id: true,
+          role: true,
           subscriptionType: true,
           sponsoredUsers: {
             select: { id: true },
@@ -91,6 +116,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!supervisorAccount) {
         return res.status(404).json({ error: "Supervisor record not found" });
+      }
+      if (supervisorAccount.role !== UserRole.SUPERVISOR && supervisorAccount.role !== UserRole.ADMIN) {
+        return res.status(400).json({ error: "Principal investigator must be a supervisor or admin" });
       }
 
       const potentialSponsorees = [...studentMembers, ...collaboratorMembers]
@@ -103,7 +131,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
 
       const conflictingSponsor = uniquePotentialSponsorees.find(
-        (user) => user.sponsorId && user.sponsorId !== supervisorAccount.id
+        (user) =>
+          user.sponsorId &&
+          user.sponsorId !== supervisorAccount.id &&
+          user.sponsorId !== existingProject.supervisorId
       );
       if (conflictingSponsor) {
         return res.status(409).json({
@@ -112,7 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const additionalSponsorships = uniquePotentialSponsorees.filter(
-        (user) => !user.sponsorId
+        (user) => user.sponsorId !== supervisorAccount.id
       ).length;
 
       if (
@@ -139,13 +170,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
 
       const updatedProject = await prisma.project.update({
-        where: { id: Number(id) },
+        where: { id: projectId },
         data: {
           title,
           description,
           startDate: startDate ? new Date(startDate) : null,
           endDate: endDate ? new Date(endDate) : null,
           category,
+          supervisorId: supervisorAccount.id,
           students: {
             set: studentMembers.map((entry) => ({ id: entry.user.id })),
           },
@@ -200,11 +232,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "GET") {
     try {
       const project = await prisma.project.findUnique({
-        where: { id: Number(id) },
+        where: { id: projectId },
         include: { students: true, collaborators: true, supervisor: true },
       });
 
       if (!project) return res.status(404).json({ error: "Project not found" });
+      if (
+        !isAdmin &&
+        project.supervisorId !== sessionUserId &&
+        !project.students.some((user) => user.id === sessionUserId) &&
+        !project.collaborators.some((user) => user.id === sessionUserId)
+      ) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       return res.status(200).json(project);
     } catch (error) {

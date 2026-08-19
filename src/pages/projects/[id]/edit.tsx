@@ -4,12 +4,23 @@ import { useEffect, useState } from "react";
 import Layout from "@/components/Layout";
 import { toast, Toaster } from "react-hot-toast";
 import { MemberSelector, ProjectMemberFormValue } from "@/components/projects/MemberSelector";
+import { UserLookup } from "@/components/admin/UserLookup";
+import { useSession } from "next-auth/react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+type PrincipalInvestigator = {
+  id: number;
+  name: string | null;
+  email: string;
+  role: string;
+};
 
 export default function EditProject() {
   const router = useRouter();
   const { id } = router.query;
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === "ADMIN";
 
   const { data: project, mutate } = useSWR(id ? `/api/projects/${id}` : null, fetcher);
 
@@ -22,18 +33,31 @@ export default function EditProject() {
   });
   const [students, setStudents] = useState<ProjectMemberFormValue[]>([]);
   const [collaborators, setCollaborators] = useState<ProjectMemberFormValue[]>([]);
+  const [principalInvestigator, setPrincipalInvestigator] =
+    useState<PrincipalInvestigator | null>(null);
+  const [formInitialized, setFormInitialized] = useState(false);
   const [membersInitialized, setMembersInitialized] = useState(false);
 
-  // Populate form when data loads
-  if (project && form.title === "" && form.description === "") {
-    setForm({
-      title: project.title || "",
-      description: project.description || "",
-      startDate: project.startDate ? project.startDate.split("T")[0] : "",
-      endDate: project.endDate ? project.endDate.split("T")[0] : "",
-      category: project.category || "",
-    });
-  }
+  useEffect(() => {
+    if (project && !formInitialized) {
+      setForm({
+        title: project.title || "",
+        description: project.description || "",
+        startDate: project.startDate ? project.startDate.split("T")[0] : "",
+        endDate: project.endDate ? project.endDate.split("T")[0] : "",
+        category: project.category || "",
+      });
+      if (project.supervisor) {
+        setPrincipalInvestigator({
+          id: project.supervisor.id,
+          name: project.supervisor.name,
+          email: project.supervisor.email,
+          role: project.supervisor.role,
+        });
+      }
+      setFormInitialized(true);
+    }
+  }, [project, formInitialized]);
 
   useEffect(() => {
     if (project && !membersInitialized) {
@@ -65,6 +89,7 @@ export default function EditProject() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          supervisorId: isAdmin ? principalInvestigator?.id : undefined,
           members: {
             students,
             collaborators,
@@ -81,6 +106,14 @@ export default function EditProject() {
       console.error(err);
       toast.error("Error updating project");
     }
+  };
+
+  const handlePrincipalInvestigatorSelect = (option: PrincipalInvestigator) => {
+    if (option.role !== "SUPERVISOR" && option.role !== "ADMIN") {
+      toast.error("Principal investigator must be a supervisor or admin.");
+      return;
+    }
+    setPrincipalInvestigator(option);
   };
 
   return (
@@ -141,6 +174,30 @@ export default function EditProject() {
               <option value="collaboration">Collaboration</option>
             </select>
         </div>
+
+          {isAdmin && (
+            <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
+              <label className="block text-sm font-semibold text-gray-900">
+                Principal investigator
+              </label>
+              <p className="mt-1 text-xs text-gray-600">
+                Admin-only: reassign ownership of this project to another supervisor or admin.
+              </p>
+              {principalInvestigator && (
+                <div className="mt-3 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm">
+                  <p className="font-medium text-gray-900">
+                    {principalInvestigator.name || principalInvestigator.email}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {principalInvestigator.email} • {principalInvestigator.role}
+                  </p>
+                </div>
+              )}
+              <div className="mt-3">
+                <UserLookup onSelect={handlePrincipalInvestigatorSelect} />
+              </div>
+            </div>
+          )}
 
           <MemberSelector
             label="Students"
