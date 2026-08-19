@@ -9,6 +9,11 @@ import {
 } from "@/lib/subscriptions";
 import { sendEmail } from "@/lib/mailer";
 
+const appUrl = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://projectdesk.app").replace(
+  /\/$/,
+  ""
+);
+
 async function ensureSupervisor(req: NextApiRequest, res: NextApiResponse) {
   const session = (await getServerSession(req, res, authOptions as any)) as any;
   if (!session?.user?.id) {
@@ -150,7 +155,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "ProjectDesk sponsorship approved",
         `Hello ${updated.name || "there"},\n\n${
           sessionUser.role === "ADMIN" ? "An administrator" : "Your supervisor"
-        } has approved your sponsorship on ProjectDesk (https://portal.projectdesk.app). You can now sign in and access your projects.\n\nThanks,\nProjectDesk`
+        } has approved your sponsorship on ProjectDesk (${appUrl}). You can now sign in and access your projects.\n\nThanks,\nProjectDesk`
       );
     }
 

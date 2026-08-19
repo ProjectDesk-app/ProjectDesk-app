@@ -18,8 +18,8 @@ type ContactRequestBody = {
 const ALLOWED_TYPES = new Set([
   "Issue",
   "Bug report",
-  "Billing query",
-  "Custom pricing",
+  "Account access",
+  "Beta request",
   "Partnership",
   "Other",
 ]);

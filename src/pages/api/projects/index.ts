@@ -11,6 +11,11 @@ import {
 import { updateProjectStatus } from "@/lib/updateProjectStatus";
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
+const appUrl = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://projectdesk.app").replace(
+  /\/$/,
+  ""
+);
+
 type MemberInput = {
   id?: number;
   email: string;
@@ -182,7 +187,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           sendEmail(
             entry.user.email,
             `You're invited to join "${project.title}" on ProjectDesk`,
-            `Hello ${entry.user.name || "there"},\n\nYou've been added to the project "${project.title}" on ProjectDesk (https://portal.projectdesk.app) by ${session.user.email}. You will need to enter their email address during the create account process.\nSign in or create an account using the email address you have received this notification at.\n\nThanks,\nProjectDesk`
+            `Hello ${entry.user.name || "there"},\n\nYou've been added to the project "${project.title}" on ProjectDesk (${appUrl}) by ${session.user.email}.\n\nUse the email address that received this notification when you sign in or finish setting up your invited account.\n\nThanks,\nProjectDesk`
           )
         )
       );
