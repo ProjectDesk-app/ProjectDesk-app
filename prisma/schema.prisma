@@ -95,6 +95,7 @@ model Task {
   updatedAt        DateTime       @updatedAt
   assigneeId       Int?
   duration         Int?
+  kind             String         @default("TASK")
   startDate        DateTime?
   status           TaskStatus     @default(TODO)
   flaggedByUserId  Int?
@@ -185,6 +186,7 @@ model TaskSet {
   updatedAt    DateTime       @updatedAt
   supervisorId Int
   name         String
+  scheduleStartDate DateTime?
   supervisor   User           @relation(fields: [supervisorId], references: [id])
   templates    TaskTemplate[] @relation("TaskSetTemplates")
 }
@@ -211,6 +213,9 @@ model TaskTemplate {
   order       Int?
   title       String
   duration    Int?
+  startOffset Int?
+  dueTime     String?
+  kind        String   @default("TASK")
   taskSet     TaskSet  @relation("TaskSetTemplates", fields: [taskSetId], references: [id], onDelete: Cascade)
 }
 

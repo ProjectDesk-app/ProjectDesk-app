@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
+import { calendarDuration } from "@/lib/taskSetSchedule";
 
 // Helper to get task by ID
 async function getTaskById(taskId: string) {
@@ -88,8 +89,9 @@ export default async function handler(
 
       let autoDuration: number | undefined = duration ? Number(duration) : undefined;
       if (parsedStart instanceof Date && parsedDue instanceof Date) {
-        const diff = Math.ceil((parsedDue.getTime() - parsedStart.getTime()) / (1000 * 60 * 60 * 24));
-        autoDuration = diff >= 0 ? diff : 0;
+        const existing = await prisma.task.findUnique({ where: { id: Number(taskIdToUse) }, select: { kind: true } });
+        if (!existing) return res.status(404).json({ error: "Task not found" });
+        autoDuration = existing.kind === "MILESTONE" ? 0 : Math.max(0, calendarDuration(parsedStart, parsedDue));
       }
 
       const assignedUsersUpdate = Array.isArray(assignedUserIds)

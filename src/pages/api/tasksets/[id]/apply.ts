@@ -2,84 +2,50 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
+import { findManagedTaskSet, positiveId } from "@/lib/taskSetAccess";
+import { dateOnly, parseCalendarDate, resolveTemplate } from "@/lib/taskSetSchedule";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { id } = req.query;
-  const { projectId } = req.body;
-
-  if (!id || Array.isArray(id) || isNaN(Number(id))) {
-    return res.status(400).json({ error: "Invalid or missing TaskSet ID" });
-  }
-  if (!projectId) {
-    return res.status(400).json({ error: "Project ID is required" });
-  }
-
-  const numericProjectId = Number(projectId);
-  if (isNaN(numericProjectId)) {
-    return res.status(400).json({ error: "Invalid Project ID" });
-  }
-
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const session = (await getServerSession(req, res, authOptions as any)) as any;
-  const userRole = session?.user?.role;
-  if (!userRole || (userRole !== "SUPERVISOR" && userRole !== "ADMIN")) {
-    return res.status(403).json({ error: "Access denied" });
-  }
-
+  if (!session) return res.status(401).json({ error: "Not authenticated" });
+  if (!["SUPERVISOR", "ADMIN"].includes(session.user.role)) return res.status(403).json({ error: "Access denied" });
+  const id = positiveId(req.query.id), projectId = positiveId(req.body.projectId);
+  if (!id || !projectId) return res.status(400).json({ error: "Provide valid task set and project IDs." });
   try {
-    const taskSet = await prisma.taskSet.findUnique({
-      where: { id: Number(id) },
-      include: { templates: true },
-    });
-
-    if (!taskSet) {
-      return res.status(404).json({ error: "TaskSet not found" });
-    }
-
-    if (!taskSet.templates?.length) {
-      return res.status(400).json({ error: "TaskSet has no templates to apply" });
-    }
-
-    const project = await prisma.project.findUnique({
-      where: { id: numericProjectId },
-      select: { startDate: true },
-    });
-
-    if (!project?.startDate) {
-      return res.status(400).json({ error: "Project not found or missing start date" });
-    }
-
-    const projectStartMs = new Date(project.startDate).getTime();
-
-    // Create tasks from templates
-    const createdTasks = await Promise.all(
-      taskSet.templates.map(async (template) => {
-        const dueDate =
-          typeof template.dueOffset === "number"
-            ? new Date(projectStartMs + template.dueOffset * 86400000)
-            : null;
-
-        return prisma.task.create({
-          data: {
-            title: template.title,
-            description: template.description || null,
-            dueDate,
-            duration: template.duration ?? null,
-            project: { connect: { id: numericProjectId } },
-          },
-        });
-      })
-    );
-
-    return res.status(201).json({
-      message: `Task Set "${taskSet.name}" applied successfully.`,
-      tasksCreated: createdTasks.length,
-    });
-  } catch (error) {
-    console.error("Error applying task set:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    const taskSet = await findManagedTaskSet(id, session.user);
+    if (!taskSet) return res.status(404).json({ error: "Task set not found" });
+    const templates = taskSet.templates.filter(t => t.kind !== "BREAK");
+    if (!templates.length) return res.status(400).json({ error: "This set has no tasks to apply." });
+    const project = await prisma.project.findFirst({ where: {
+      id: projectId, ...(session.user.role === "ADMIN" ? {} : { supervisorId: Number(session.user.id) }),
+    }, select: { startDate: true, isCompleted: true } });
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (project.isCompleted) return res.status(400).json({ error: "Choose an active project." });
+    const mode = req.body.dateMode ?? (taskSet.scheduleStartDate ? "timetable" : "project");
+    let base: string;
+    try {
+      if (mode === "timetable" && taskSet.scheduleStartDate) base = dateOnly(taskSet.scheduleStartDate);
+      else if (mode === "project" && project.startDate) base = dateOnly(project.startDate);
+      else if (mode === "custom") base = dateOnly(parseCalendarDate(req.body.scheduleStartDate));
+      else throw new Error("Choose a schedule start date; this project or timetable has no start date.");
+    } catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+    let tasks;
+    try {
+      tasks = templates.map(t => {
+        const { startDate, dueDate, duration } = resolveTemplate(t, base);
+        return { title: t.title, description: t.description, startDate, dueDate, duration, projectId,
+          kind: t.kind === "MILESTONE" ? "MILESTONE" : "TASK" };
+      });
+    } catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+    const existing = await prisma.task.findMany({ where: { projectId, title: { in: tasks.map(t => t.title) } }, select: { title: true } });
+    if (existing.length) return res.status(409).json({ error: `No tasks added. This project already contains: ${existing.map(t => t.title).join(", ")}.` });
+    // createMany is atomic, preventing partial schedules during duplicate applications.
+    const result = await prisma.task.createMany({ data: tasks });
+    return res.status(201).json({ tasksCreated: result.count, message: `“${taskSet.name}” applied successfully.` });
+  } catch (error: any) {
+    if (error?.code === "P2002") return res.status(409).json({ error: "No tasks added. Some tasks already exist in this project." });
+    console.error("Task set application error:", error);
+    return res.status(500).json({ error: "Unable to apply this task set. No tasks were added." });
   }
 }

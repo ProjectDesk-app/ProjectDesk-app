@@ -75,7 +75,7 @@ export default function TaskLibrary() {
           </p>
         </div>
 
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <h2 className="text-xl font-semibold">Your Task Sets</h2>
           <button
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
@@ -100,7 +100,7 @@ export default function TaskLibrary() {
           ) : (
             <ul className="divide-y divide-gray-200">
               {taskSets.map((ts: any) => (
-                <li key={ts.id} className="flex justify-between items-center py-4">
+                <li key={ts.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:justify-between sm:items-center">
                   <div className="flex items-center gap-3">
                     {editingId === ts.id ? (
                       <>
@@ -132,7 +132,7 @@ export default function TaskLibrary() {
                       </>
                     ) : (
                       <div className="flex flex-col">
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                           {/* Pencil icon to trigger renaming */}
                           <button
                             className="text-gray-500 hover:text-gray-700 transition flex items-center"
@@ -162,12 +162,13 @@ export default function TaskLibrary() {
                           {/* Display Task Set name */}
                           <span className="font-semibold">{ts.name}</span>
                           {/* Number of tasks */}
-                          <span className="ml-2 text-sm text-gray-600">{ts.templates?.length || 0} tasks</span>
+                          <span className="ml-2 text-sm text-gray-600">{ts.templates?.filter((t: any) => t.kind !== "BREAK").length || 0} tasks</span>
                         </div>
+                        {ts.scheduleStartDate && <span className="mt-1 text-sm text-gray-500">Timetable starts {new Date(ts.scheduleStartDate).toLocaleDateString("en-GB", { timeZone: "UTC" })}</span>}
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <button
                       className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200 transition text-sm"
                       onClick={() => router.push(`/supervisor/task-sets/${ts.id}`)}

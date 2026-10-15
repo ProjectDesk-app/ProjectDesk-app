@@ -35,6 +35,7 @@ export async function updateProjectStatus(projectId: number) {
   const durationOverflow = project.tasks.filter(
     t =>
       t.startDate &&
+      !t.dueDate &&
       t.duration &&
       project.endDate &&
       new Date(t.startDate).getTime() + t.duration * oneDayMs >

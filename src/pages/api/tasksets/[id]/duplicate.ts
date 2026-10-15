@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { findManagedTaskSet, positiveId } from "@/lib/taskSetAccess";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -16,16 +17,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const { id } = req.query;
-    const taskSetId = Number(id);
-    if (isNaN(taskSetId)) {
+    const taskSetId = positiveId(id);
+    if (!taskSetId) {
       return res.status(400).json({ error: "Invalid task set ID" });
     }
 
     // Fetch original task set with its templates
-    const original = await prisma.taskSet.findUnique({
-      where: { id: taskSetId },
-      include: { templates: true },
-    });
+    const original = await findManagedTaskSet(taskSetId, session.user);
 
     if (!original) {
       return res.status(404).json({ error: "Task set not found" });
@@ -36,11 +34,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: {
         name: `${original.name} (Copy)`,
         supervisorId: original.supervisorId,
+        scheduleStartDate: original.scheduleStartDate,
         templates: {
           create: original.templates.map((t) => ({
             title: t.title,
             description: t.description,
             dueOffset: t.dueOffset,
+            startOffset: t.startOffset,
+            duration: t.duration,
+            dueTime: t.dueTime,
+            kind: t.kind,
             order: t.order,
           })),
         },

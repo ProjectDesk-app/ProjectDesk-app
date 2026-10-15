@@ -1,174 +1,91 @@
 import { Dialog } from "@headlessui/react";
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { Loader2 } from "lucide-react";
+import TaskSetTimeline from "./TaskSetTimeline";
+import { dateOnly } from "@/lib/taskSetSchedule";
+import { useSession } from "next-auth/react";
 
-interface ApplyTaskSetModalProps {
-  open: boolean;
-  onClose: () => void;
-  taskSet: any | null;
-}
+interface Props { open: boolean; onClose: () => void; taskSet: any | null; }
 
-export default function ApplyTaskSetModal({ open: isOpen, onClose, taskSet }: ApplyTaskSetModalProps) {
-  // Defensive check: don't render modal if not open or no taskSet provided
-  if (!isOpen) {
-    // Modal is closed, do not render anything
-    return null;
-  }
-  if (!taskSet) {
-    console.warn("ApplyTaskSetModal: 'taskSet' prop is null or undefined while modal is open");
-    return null;
-  }
-
+export default function ApplyTaskSetModal({ open, onClose, taskSet }: Props) {
+  const { data: session } = useSession();
+  const userId = (session?.user as any)?.id;
+  const userRole = (session?.user as any)?.role;
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState("");
-  const [loading, setLoading] = useState(false); // Track loading state for submission
-  const [loadingProjects, setLoadingProjects] = useState(false); // Track loading state for projects fetch
-  const [fetchError, setFetchError] = useState<string | null>(null); // Track fetch error message
-  const [showSuccess, setShowSuccess] = useState(false); // Track local success message display
-
-  // Load all projects for the supervisor when modal opens
+  const [dateMode, setDateMode] = useState("project");
+  const [customStart, setCustomStart] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [error, setError] = useState("");
+  const [projectError, setProjectError] = useState("");
   useEffect(() => {
-    if (typeof isOpen !== "boolean") {
-      console.warn("ApplyTaskSetModal: 'isOpen' prop is not a boolean");
-      return;
-    }
-    if (!isOpen) return;
-
+    if (!open || !taskSet) return;
+    const controller = new AbortController();
+    setSelectedProject(""); setError(""); setProjectError(""); setProjects([]);
+    setDateMode(taskSet.scheduleStartDate ? "timetable" : "project");
+    setCustomStart(taskSet.scheduleStartDate ? dateOnly(taskSet.scheduleStartDate) : "");
     setLoadingProjects(true);
-    setFetchError(null);
-
-    fetch("/api/projects")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch projects");
-        return res.json();
-      })
-      .then((data) => {
-        const list = Array.isArray(data)
-          ? data.filter((project) => !project.isCompleted)
-          : [];
-        setProjects(list);
-        setSelectedProject((prev) =>
-          prev && list.some((project) => String(project.id) === prev) ? prev : ""
-        );
-      })
-      .catch(() => {
-        setFetchError("Failed to load projects. Please try again.");
-        toast.error("Failed to load projects");
-      })
-      .finally(() => setLoadingProjects(false));
-  }, [isOpen]);
-
-  const parseJsonSafe = async (res: Response) => {
-    const text = await res.text();
-    if (!text) return {} as any;
-    try { return JSON.parse(text); } catch { return {} as any; }
-  };
-
-  const handleApply = async () => {
-    if (!selectedProject) {
-      toast.error("Please select a project");
-      return;
-    }
-
-    setLoading(true);
+    fetch("/api/projects", { signal: controller.signal }).then(async response => {
+      if (!response.ok) throw new Error("Unable to load projects.");
+      return response.json();
+    }).then(data => setProjects(Array.isArray(data) ? data.filter(project => !project.isCompleted &&
+      (userRole === "ADMIN" || Number(project.supervisorId) === Number(userId))) : []))
+      .catch(error => { if (error.name !== "AbortError") setProjectError("Unable to load projects. Close this dialog and try again."); })
+      .finally(() => { if (!controller.signal.aborted) setLoadingProjects(false); });
+    return () => controller.abort();
+  }, [open, taskSet, userId, userRole]);
+  if (!open || !taskSet) return null;
+  const project = projects.find(p => String(p.id) === selectedProject);
+  const base = dateMode === "timetable" ? (taskSet.scheduleStartDate ? dateOnly(taskSet.scheduleStartDate) : "") :
+    dateMode === "project" ? (project?.startDate ? dateOnly(project.startDate) : "") : customStart;
+  const templates = taskSet.templates || [];
+  const taskCount = templates.filter((t: any) => t.kind !== "BREAK").length;
+  const apply = async () => {
+    if (!selectedProject || !base) return;
+    setLoading(true); setError("");
     try {
-      const res = await fetch(`/api/tasksets/${taskSet.id}/apply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: Number(selectedProject) }),
-      });
-
-      const data = await parseJsonSafe(res);
-
-      if (!res.ok) {
-        const msg = (data && (data.error || data.message)) || "Failed to apply task set";
-        toast.error(msg);
-        return;
-      }
-
-      toast.success("Task set successfully applied to the project!");
-      setShowSuccess(true);
-      setTimeout(() => {
-        setShowSuccess(false);
-        onClose();
-      }, 1300);
-    } catch (error: any) {
-      console.error("Error applying task set:", error);
-      const msg = error?.message || "An unexpected error occurred";
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
+      const response = await fetch(`/api/tasksets/${taskSet.id}/apply`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: Number(selectedProject), dateMode, ...(dateMode === "custom" ? { scheduleStartDate: customStart } : {}) }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to apply task set.");
+      toast.success(`${data.tasksCreated} tasks created in ${project.title}`);
+      onClose();
+    } catch (error) { setError((error as Error).message); } finally { setLoading(false); }
   };
-
-  const selectedProjectTitle = projects.find(p => String(p.id) === selectedProject)?.title || "";
-
-  return (
-    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="bg-white p-6 rounded-lg max-w-sm w-full shadow-lg">
-          <Dialog.Title className="text-lg font-semibold mb-4">
-            Apply “{taskSet?.name || "Task Set"}” to Project
-          </Dialog.Title>
-
-          <label className="block mb-2 font-medium text-sm text-gray-700">
-            Select Project
-          </label>
-
-          {/* Show loading, error, no projects, or project select dropdown */}
-          {loadingProjects ? (
-            <div className="mb-4 flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50/70 px-3 py-2 text-sm text-blue-900">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              Loading available projects…
-            </div>
-          ) : fetchError ? (
-            <p className="mb-4 text-red-600">{fetchError}</p>
-          ) : projects.length === 0 ? (
-            <p className="mb-4 text-gray-500">No projects available to select.</p>
-          ) : (
-            <select
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="w-full border rounded p-2 mb-4"
-              disabled={loading || showSuccess} // Disable select while submitting or showing success
-            >
-              <option value="">Select a project</option>
-              {/* Safety guard: ensure projects is an array before mapping to prevent runtime errors if API returns non-array */}
-              {Array.isArray(projects) &&
-                projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.title}
-                  </option>
-                ))}
-            </select>
-          )}
-
-          {showSuccess && (
-            <p className="mb-4 text-green-600 font-semibold">
-              ✅ Task Set successfully applied to {selectedProjectTitle}
-            </p>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-              disabled={loading || showSuccess} // Disable cancel button while submitting or showing success to avoid conflicts
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleApply}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading || projects.length === 0 || showSuccess}
-            >
-              {loading ? "Applying..." : "Apply"}
-            </button>
-          </div>
-        </Dialog.Panel>
-      </div>
-    </Dialog>
-  );
+  return <Dialog open={open} onClose={() => !loading && onClose()} className="relative z-50">
+    <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+    <div className="fixed inset-0 overflow-y-auto p-4">
+      <Dialog.Panel className="mx-auto my-4 w-full max-w-4xl space-y-5 rounded-lg bg-white p-6 shadow-lg">
+        <Dialog.Title className="text-xl font-semibold">Apply “{taskSet.name}” to a project</Dialog.Title>
+        {loadingProjects ? <p role="status">Loading projects…</p> : projectError ? <p role="alert" className="text-red-700">{projectError}</p> : !projects.length ? <p>No active projects available.</p> :
+          <fieldset disabled={loading} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="text-sm font-medium">Project
+              <select value={selectedProject} onChange={e => { setSelectedProject(e.target.value); setError(""); }} className="mt-1 block w-full rounded border px-3 py-2">
+                <option value="">Select a project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-medium">Schedule dates
+              <select value={dateMode} onChange={e => { setDateMode(e.target.value); setError(""); }} className="mt-1 block w-full rounded border px-3 py-2">
+                {taskSet.scheduleStartDate && <option value="timetable">Use the shared timetable dates</option>}
+                <option value="project">Shift from this project's start</option>
+                <option value="custom">Choose another start date</option>
+              </select>
+            </label>
+            {dateMode === "custom" && <label className="text-sm font-medium">Schedule start
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="mt-1 block w-full rounded border px-3 py-2" />
+            </label>}
+          </fieldset>}
+        {dateMode === "timetable" && <p className="text-sm text-gray-600">All projects using this timetable receive the same dates, regardless of when their project record was created.</p>}
+        {selectedProject && dateMode === "project" && !base && <p role="alert" className="text-amber-800">This project has no start date. Choose another start date above.</p>}
+        {base && <TaskSetTimeline templates={templates} startDate={base} />}
+        <p className="text-sm text-gray-600">{taskCount} tasks will be created. Breaks are shown for reference and do not pause tasks. Due times use UK time.</p>
+        {error && <p role="alert" className="text-red-700">{error}</p>}
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} disabled={loading} className="rounded bg-gray-200 px-4 py-2">Cancel</button>
+          <button type="button" onClick={apply} disabled={loading || loadingProjects || !selectedProject || !base || !taskCount} className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">{loading ? "Applying…" : "Create tasks in project"}</button>
+        </div>
+      </Dialog.Panel>
+    </div>
+  </Dialog>;
 }

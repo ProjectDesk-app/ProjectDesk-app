@@ -6,6 +6,7 @@ import { ViewMode, Task } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingState } from "@/components/LoadingState";
+import { calendarDuration } from "@/lib/taskSetSchedule";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const NAME_COLUMN_MIN = 160;
@@ -292,7 +293,7 @@ export default function GanttPage() {
         }
       }
       // Calculate durationDays for color logic
-      const durationDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const durationDays = t.kind === "MILESTONE" ? 0 : calendarDuration(start, end);
       const color = getEnhancedTaskColor(t, end, durationDays);
       const status = normalizeStatus(t.status);
       return {
@@ -302,7 +303,7 @@ export default function GanttPage() {
         end,
         progress: isCompletedStatus(status) ? 100 : isInProgressStatus(status) ? 50 : 0,
         dependencies: t.dependencyTaskId ? [String(t.dependencyTaskId)] : [],
-        type: "task",
+        type: t.kind === "MILESTONE" ? "milestone" : "task",
         styles: {
           progressColor: color,
           backgroundColor: color,
@@ -524,7 +525,7 @@ export default function GanttPage() {
   };
 
   function CustomTooltip({ task }: { task: Task }) {
-    const durationDays = Math.round((task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const durationDays = task.type === "milestone" ? 0 : calendarDuration(task.start, task.end);
     const shortDateFormatter = new Intl.DateTimeFormat(undefined, isMobile
       ? { day: "2-digit", month: "2-digit", year: "2-digit" }
       : { year: "numeric", month: "short", day: "numeric" });
@@ -533,7 +534,7 @@ export default function GanttPage() {
         <div><strong>{task.name}</strong></div>
         <div>Start: {shortDateFormatter.format(task.start)}</div>
         <div>End: {shortDateFormatter.format(task.end)}</div>
-        <div>Duration: {durationDays} day{durationDays !== 1 ? 's' : ''}</div>
+        <div>{task.type === "milestone" ? "Milestone" : `Duration: ${durationDays} day${durationDays !== 1 ? "s" : ""}`}</div>
       </div>
     );
   }
