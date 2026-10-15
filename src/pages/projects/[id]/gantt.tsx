@@ -27,7 +27,6 @@ const GANTT_NAME_WIDTH_STORAGE_KEY = "projectdesk:gantt:name-column-width";
 const GANTT_TIMELINE_WIDTH_STORAGE_KEY = "projectdesk:gantt:timeline-column-width";
 const COLOR_FLAGGED = "#8b5cf6";
 const COLOR_OVERDUE = "#ef4444";
-const COLOR_LONG_DURATION = "#f59e0b";
 const COLOR_DONE = "#16a34a";
 const COLOR_IN_PROGRESS = "#2563eb";
 const COLOR_TODO = "#6b7280";
@@ -75,7 +74,6 @@ const COMPACT_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
 const LEGEND_ITEMS: Array<{ label: string; color: string; description: string }> = [
   { label: "Flagged", color: COLOR_FLAGGED, description: "Needs support" },
   { label: "Overdue", color: COLOR_OVERDUE, description: "Past due date" },
-  { label: "Long duration", color: COLOR_LONG_DURATION, description: "More than 30 days" },
   { label: "In progress", color: COLOR_IN_PROGRESS, description: "Active work" },
   { label: "Done", color: COLOR_DONE, description: "Completed" },
   { label: "To do", color: COLOR_TODO, description: "Not started" },
@@ -245,14 +243,12 @@ export default function GanttPage() {
     );
   }
 
-  // Enhanced getTaskColor for overdue and long-duration tasks
-  function getEnhancedTaskColor(t: any, end: Date, durationDays: number) {
+  function getTaskColor(t: any) {
     const today = new Date();
     const status = normalizeStatus(t.status);
     if (isCompletedStatus(status)) return COLOR_DONE;
     if (t.flagged) return COLOR_FLAGGED;
     if (t.dueDate && new Date(t.dueDate) < today) return COLOR_OVERDUE;
-    if (durationDays > 30) return COLOR_LONG_DURATION;
     if (isInProgressStatus(status)) return COLOR_IN_PROGRESS;
     if (status === "todo") return COLOR_TODO;
     return COLOR_TODO;
@@ -292,9 +288,7 @@ export default function GanttPage() {
           start.setDate(end.getDate() - duration);
         }
       }
-      // Calculate durationDays for color logic
-      const durationDays = t.kind === "MILESTONE" ? 0 : calendarDuration(start, end);
-      const color = getEnhancedTaskColor(t, end, durationDays);
+      const color = getTaskColor(t);
       const status = normalizeStatus(t.status);
       return {
         id: String(t.id),
