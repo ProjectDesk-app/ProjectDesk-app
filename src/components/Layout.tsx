@@ -196,7 +196,7 @@ export default function Layout({
         <title>{title ? `${title} • ProjectDesk` : "ProjectDesk"}</title>
         <link rel="icon" type="image/png" href="/branding/favicon.png" />
       </Head>
-      <header className="border-b bg-white/75 backdrop-blur">
+      <header className="relative z-40 border-b bg-white/75 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
             <Image src={Logo} alt="ProjectDesk" className="h-8 w-auto" priority />
