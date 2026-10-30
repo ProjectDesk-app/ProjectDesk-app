@@ -23,6 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         role: true,
         emailVerified: true,
         subscriptionType: true,
+        feedbackOnly: true,
         subscriptionExpiresAt: true,
         sponsor: {
           select: {

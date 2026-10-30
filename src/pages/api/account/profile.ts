@@ -21,6 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         emailVerified: true,
         role: true,
         subscriptionType: true,
+        feedbackOnly: true,
         subscriptionStartedAt: true,
         subscriptionExpiresAt: true,
         sponsorSubscriptionInactive: true,

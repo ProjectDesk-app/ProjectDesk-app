@@ -21,6 +21,7 @@ type UserRow = {
   role: string;
   emailVerified?: string | null;
   subscriptionType?: string | null;
+  feedbackOnly?: boolean;
   subscriptionExpiresAt?: string | null;
   sponsor?: {
     id: number;
@@ -479,7 +480,9 @@ export default function AdminDashboard() {
                 {selectedUser.subscriptionType === "SPONSORED" && (
                   <div className="sm:col-span-2 rounded-md border border-emerald-200 bg-white px-3 py-2">
                     <p className="text-xs font-semibold text-emerald-900">Sponsor details</p>
-                    {selectedUser.sponsor ? (
+                    {selectedUser.feedbackOnly ? (
+                      <p className="text-sm font-medium text-gray-700">Feedback Hub only — no sponsor required.</p>
+                    ) : selectedUser.sponsor ? (
                       <>
                         <p className="text-sm font-semibold text-gray-900">
                           {selectedUser.sponsor.name || selectedUser.sponsor.email}
@@ -748,7 +751,7 @@ export default function AdminDashboard() {
                     </p>
                     <p className="text-sm text-gray-600">{user.email}</p>
                     <p className="text-xs text-gray-500">
-                      Role: {user.role} • Subscription: {titleCase(user.subscriptionType)}
+                      Role: {user.role} • Subscription: {user.feedbackOnly ? "Feedback Hub only" : titleCase(user.subscriptionType)}
                       {user.subscriptionExpiresAt && (
                         <>
                           {" "}
@@ -756,7 +759,9 @@ export default function AdminDashboard() {
                         </>
                       )}
                     </p>
-                    {user.subscriptionType === "SPONSORED" && (
+                    {user.feedbackOnly ? (
+                      <p className="text-xs text-gray-500">Sponsor: Feedback Hub only</p>
+                    ) : user.subscriptionType === "SPONSORED" && (
                       <p className="text-xs text-gray-500">
                         Sponsored by{" "}
                         {user.sponsor?.name || user.sponsor?.email || "Unknown sponsor"}

@@ -7,6 +7,7 @@ type Profile = {
   emailVerified?: string | Date | null;
   role?: string | null;
   subscriptionType?: string | null;
+  feedbackOnly?: boolean;
   subscriptionStartedAt?: string | Date | null;
   subscriptionExpiresAt?: string | Date | null;
   sponsor?: {
@@ -78,7 +79,7 @@ export function ProfileOverviewModal({ open, onClose, profile }: Props) {
       </div>
       <div>
         <p className="text-xs uppercase text-gray-500">Subscription</p>
-        <p className="font-medium text-gray-900">{subscriptionLabel || "—"}</p>
+        <p className="font-medium text-gray-900">{profile?.feedbackOnly ? "Feedback Hub only" : subscriptionLabel || "—"}</p>
         <p className="text-xs text-gray-500">
           {subscriptionStarted ? `Started ${subscriptionStarted.toLocaleDateString()}` : ""}
           {subscriptionEnds ? ` • Expires ${subscriptionEnds.toLocaleDateString()}` : ""}
@@ -86,7 +87,9 @@ export function ProfileOverviewModal({ open, onClose, profile }: Props) {
       </div>
       <div>
         <p className="text-xs uppercase text-gray-500">Sponsor</p>
-        {profile?.sponsor ? (
+        {profile?.feedbackOnly ? (
+          <p className="font-medium text-gray-900">Feedback Hub only</p>
+        ) : profile?.sponsor ? (
           <div className="font-medium text-gray-900">
             {profile.sponsor.name || profile.sponsor.email || "—"}
             {profile.sponsor.email && (

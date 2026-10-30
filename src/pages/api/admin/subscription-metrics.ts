@@ -78,11 +78,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   const sponsorAlertsCount = await prisma.user.count({
-    where: { sponsorSubscriptionInactive: true },
+    where: { sponsorSubscriptionInactive: true, feedbackOnly: false },
   });
 
   const sponsorAlertsUsers = await prisma.user.findMany({
-    where: { sponsorSubscriptionInactive: true },
+    where: { sponsorSubscriptionInactive: true, feedbackOnly: false },
     select: {
       id: true,
       name: true,
