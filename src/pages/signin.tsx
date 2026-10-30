@@ -2,8 +2,11 @@ import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Layout from "@/components/Layout";
+import { useRouter } from "next/router";
 
 export default function SignInPage() {
+  const router = useRouter();
+  const callbackUrl = typeof router.query.callbackUrl === "string" && router.query.callbackUrl.startsWith("/") && !router.query.callbackUrl.startsWith("//") && !router.query.callbackUrl.includes("\\") ? router.query.callbackUrl : "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +21,7 @@ export default function SignInPage() {
         redirect: false,
         email,
         password,
-        callbackUrl: "/dashboard",
+        callbackUrl,
       });
       if (result?.error) {
         throw new Error(result.error);

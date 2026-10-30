@@ -39,10 +39,10 @@ export const authOptions = {
                 throw new Error('This email address has been blocked from ProjectDesk');
               }
               const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-              if (!user || !user.passwordHash) return null;
+              if (!user || !user.passwordHash || !user.emailVerified) return null;
               const ok = await bcrypt.compare(credentials.password, user.passwordHash);
               if (!ok) return null;
-              if (user.subscriptionType === SubscriptionType.SPONSORED && !user.sponsorId) {
+              if (user.subscriptionType === SubscriptionType.SPONSORED && !user.sponsorId && !(await prisma.feedbackWork.findFirst({ where: { recipientEmail: user.email }, select: { id: true } }))) {
                 throw new Error('Awaiting sponsorship approval');
               }
               return {
@@ -55,6 +55,7 @@ export const authOptions = {
                 subscriptionExpiresAt: user.subscriptionExpiresAt,
                 sponsorId: user.sponsorId,
                 sponsorSubscriptionInactive: user.sponsorSubscriptionInactive,
+                feedbackOnly: user.feedbackOnly,
               } as any;
             },
           }),
@@ -74,6 +75,7 @@ export const authOptions = {
       if (user) {
         token.id = (user as any).id ?? token.id;
         token.role = (user as any).role ?? token.role;
+        token.feedbackOnly = Boolean((user as any).feedbackOnly);
         token.subscriptionType = (user as any).subscriptionType ?? token.subscriptionType;
         token.subscriptionStartedAt = (user as any).subscriptionStartedAt
           ? new Date((user as any).subscriptionStartedAt).toISOString()
@@ -110,6 +112,7 @@ export const authOptions = {
           subscriptionExpiresAt: true,
           sponsorId: true,
           sponsorSubscriptionInactive: true,
+          feedbackOnly: true,
         },
       });
 
@@ -120,6 +123,7 @@ export const authOptions = {
       token.id = dbUser.id;
       token.sub = String(dbUser.id);
       token.role = dbUser.role;
+      token.feedbackOnly = dbUser.feedbackOnly || (dbUser.subscriptionType === SubscriptionType.SPONSORED && !dbUser.sponsorId);
       token.name = dbUser.name ?? dbUser.email;
       token.email = dbUser.email;
       token.subscriptionType = dbUser.subscriptionType;
@@ -142,6 +146,7 @@ export const authOptions = {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
+        (session.user as any).feedbackOnly = Boolean(token.feedbackOnly);
         (session.user as any).subscriptionType = token.subscriptionType;
         (session.user as any).subscriptionStartedAt = token.subscriptionStartedAt ?? null;
         (session.user as any).subscriptionExpiresAt = token.subscriptionExpiresAt ?? null;

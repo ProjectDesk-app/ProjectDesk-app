@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { getToken } from "next-auth/jwt";
+import { NextRequest, NextResponse } from "next/server";
 
-export function middleware(request: NextRequest) {
+/** Feedback registration grants access to the Hub, not the wider project workspace. */
+export async function middleware(request: NextRequest) {
   if (process.env.MAINTENANCE_MODE === 'true') {
     const maintenanceHtml = `<!doctype html>
 <html lang="en">
@@ -163,5 +164,22 @@ export function middleware(request: NextRequest) {
     )
   }
 
-  return NextResponse.next()
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  if (!token?.feedbackOnly) return NextResponse.next();
+  const path = request.nextUrl.pathname;
+  const allowed = path === "/feedback" || path.startsWith("/feedback/") ||
+    path === "/api/feedback" || path.startsWith("/api/feedback/") ||
+    path.startsWith("/api/auth/") || path === "/api/feedback-signup" ||
+    path === "/api/account/profile" || path === "/api/notifications" ||
+    path.startsWith("/api/notifications/") ||
+    ["/signin", "/verify-email", "/forgot-password", "/reset-password"].includes(path);
+  if (allowed) return NextResponse.next();
+  if (path.startsWith("/api/")) {
+    return NextResponse.json({ error: "This account has access to Feedback Hub only." }, { status: 403 });
+  }
+  return NextResponse.redirect(new URL("/feedback", request.url));
 }
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|branding/|.*\\.(?:png|jpg|jpeg|svg|ico|css|js|woff2?)$).*)"],
+};

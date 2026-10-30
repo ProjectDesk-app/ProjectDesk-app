@@ -15,6 +15,12 @@ function logMockEmail(to: string, subject: string, message: string) {
   console.log(`\n📧 [Mock Email]\nTo: ${to}\nSubject: ${subject}\n${message}\n`);
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[character]!));
+}
+
 function buildHtmlTemplate(subject: string, message: string) {
   const fallbackLogoUrl =
     "https://raw.githubusercontent.com/ProjectDesk-app/ProjectDesk-app/refs/heads/main/src/assets/branding/ProjectDesk-Transparent.png";
@@ -22,7 +28,7 @@ function buildHtmlTemplate(subject: string, message: string) {
   const logoUrl = envLogoUrl || fallbackLogoUrl;
   const safeMessage = message
     .split("\n")
-    .map((line) => line.trim())
+    .map((line) => escapeHtml(line.trim()))
     .join("<br />");
 
   return `
@@ -31,7 +37,7 @@ function buildHtmlTemplate(subject: string, message: string) {
   <head>
     <meta charSet="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>${subject}</title>
+    <title>${escapeHtml(subject)}</title>
     <style>
       body {
         margin: 0;
@@ -74,7 +80,7 @@ function buildHtmlTemplate(subject: string, message: string) {
     <div class="wrapper">
       <div class="card">
         <div class="logo">
-          <img src="${logoUrl}" alt="ProjectDesk" />
+          <img src="${escapeHtml(logoUrl)}" alt="ProjectDesk" />
         </div>
         <div class="content">
           ${safeMessage}

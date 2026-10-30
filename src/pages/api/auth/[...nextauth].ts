@@ -48,7 +48,7 @@ export const authOptions = {
           ]);
 
           const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-          const verifyLink = `${baseUrl}/verify-email?token=${token}`;
+          const verifyLink = `${baseUrl}/verify-email?token=${token}${user.feedbackOnly ? "&feedback=1" : ""}`;
 
           await sendEmail(
             user.email,
@@ -59,7 +59,7 @@ export const authOptions = {
           throw new Error("Email not verified");
         }
 
-        if (user.subscriptionType === SubscriptionType.SPONSORED && !user.sponsorId) {
+        if (user.subscriptionType === SubscriptionType.SPONSORED && !user.sponsorId && !(await prisma.feedbackWork.findFirst({ where: { recipientEmail: user.email }, select: { id: true } }))) {
           throw new Error("Awaiting sponsorship approval");
         }
 
@@ -103,6 +103,7 @@ export const authOptions = {
 
       if (session.user) {
         session.user.id = token.id ? Number(token.id) : undefined;
+        session.user.feedbackOnly = Boolean(token.feedbackOnly);
         session.user.role = token.role as string;
         if (token.name) session.user.name = token.name as string;
         if (token.email) session.user.email = token.email as string;
@@ -160,6 +161,7 @@ export const authOptions = {
           subscriptionExpiresAt: true,
           sponsorId: true,
           sponsorSubscriptionInactive: true,
+          feedbackOnly: true,
         },
       });
 
@@ -167,6 +169,7 @@ export const authOptions = {
         return {};
       }
 
+      token.feedbackOnly = dbUser.feedbackOnly || (dbUser.subscriptionType === SubscriptionType.SPONSORED && !dbUser.sponsorId);
       token.id = dbUser.id;
       token.sub = String(dbUser.id);
       token.role = dbUser.role;

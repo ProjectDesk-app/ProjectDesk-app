@@ -55,10 +55,10 @@ export default function VerifyEmailPage() {
             Return to home
           </Link>
           <Link
-            href="/dashboard"
+            href={router.query.feedback === "1" ? "/signin?callbackUrl=/feedback" : "/dashboard"}
             className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
-            Go to dashboard
+            {router.query.feedback === "1" ? "Sign in to Feedback Hub" : "Go to dashboard"}
           </Link>
         </div>
       </div>

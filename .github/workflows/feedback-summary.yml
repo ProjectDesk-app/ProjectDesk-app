@@ -1,0 +1,28 @@
+name: Feedback Hub daily summary
+on:
+  schedule:
+    # One invocation is 09:00 in London; the endpoint ignores the other.
+    - cron: '0 8,9 * * 1-5'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: feedback-summary
+  cancel-in-progress: false
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Request working-day summary
+        env:
+          FEEDBACK_CRON_URL: ${{ secrets.FEEDBACK_CRON_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$FEEDBACK_CRON_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo 'Set FEEDBACK_CRON_URL and CRON_SECRET repository secrets to enable summaries.'
+            exit 1
+          fi
+          curl --fail --silent --show-error --retry 2 --retry-all-errors --retry-delay 20 \
+            --connect-timeout 15 --max-time 90 \
+            --request POST --header "Authorization: Bearer $CRON_SECRET" \
+            "$FEEDBACK_CRON_URL"

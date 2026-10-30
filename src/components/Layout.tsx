@@ -41,6 +41,8 @@ export default function Layout({
   const [notifyingSponsor, setNotifyingSponsor] = useState(false);
   const userRole = (session?.user as any)?.role;
   const isAuthenticated = Boolean(session);
+  const feedbackRoute = router.pathname === "/feedback" || router.pathname.startsWith("/feedback/");
+  const feedbackOnly = Boolean((session?.user as any)?.feedbackOnly);
 
   const navItems = useMemo(
     () => [
@@ -50,6 +52,7 @@ export default function Layout({
         roles: undefined,
         icon: LayoutDashboard,
       },
+      { label: "Feedback Hub", href: "/feedback", roles: undefined, icon: GraduationCap },
       {
         label: "Support Hub",
         href: "/assistance",
@@ -79,7 +82,7 @@ export default function Layout({
   );
 
   const allowedNavItems = navItems.filter(
-    (item) => !item.roles || (userRole && item.roles.includes(userRole))
+    (item) => (!feedbackOnly || item.href === "/feedback") && (!item.roles || (userRole && item.roles.includes(userRole)))
   );
 
   const { data: accountProfile, mutate: mutateAccountProfile } = useSWR(
@@ -330,7 +333,7 @@ export default function Layout({
           </div>
         </div>
       </header>
-      {isAuthenticated && inactiveSponsorWarning && (
+      {isAuthenticated && inactiveSponsorWarning && !feedbackRoute && (
         <div className="bg-amber-100 border-b border-amber-200">
           <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-3 text-sm text-amber-900">
             <AlertTriangle className="h-5 w-5 flex-shrink-0" />
@@ -349,7 +352,7 @@ export default function Layout({
 
       <Toaster position="bottom-right" />
 
-      {trialExpired && (
+      {trialExpired && !feedbackRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 text-left shadow-xl">
             <div className="space-y-2">
@@ -387,7 +390,7 @@ export default function Layout({
         </div>
       )}
 
-      {supervisorSubscriptionCancelled && (
+      {supervisorSubscriptionCancelled && !feedbackRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 text-left shadow-xl">
             <div className="space-y-2">
@@ -425,7 +428,7 @@ export default function Layout({
         </div>
       )}
 
-      {sponsorSubscriptionInactive && (
+      {sponsorSubscriptionInactive && !feedbackRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 text-left shadow-xl">
             <div className="space-y-2">

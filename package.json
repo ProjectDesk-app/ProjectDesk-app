@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:tasksets": "node --test scripts/task-set-schedule.test.cjs",
+    "test:feedback": "node --test scripts/feedback*.test.cjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "node prisma/seed.cjs"

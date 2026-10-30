@@ -15,6 +15,7 @@ model User {
   supervisorId          Int?
   sponsorId             Int?
   passwordHash          String?
+  feedbackOnly          Boolean @default(false)
   role                  UserRole        @default(STUDENT)
   emailVerified         DateTime?
   pendingEmail          String?
@@ -45,6 +46,9 @@ model User {
   passwordResets        PasswordResetToken[]
   goCardlessRedirectFlows GoCardlessRedirectFlow[]
   blockedEmailsCreated  BlockedEmail[]  @relation("BlockedByAdmin")
+  feedbackWorks FeedbackWork[]
+  feedbackSettings FeedbackSettings?
+  feedbackPresets FeedbackPreset[]
 }
 
 model Project {
@@ -292,4 +296,72 @@ enum SubscriptionType {
   FREE_TRIAL
   SPONSORED
   CANCELLED
+}
+
+
+model FeedbackWork {
+  id Int @id @default(autoincrement())
+  supervisorId Int
+  supervisor User @relation(fields: [supervisorId], references: [id])
+  recipientName String
+  recipientEmail String
+  title String
+  workType String
+  createdAt DateTime @default(now())
+  nextVersion Int @default(1)
+  reviews FeedbackReview[]
+  @@index([supervisorId])
+  @@index([recipientEmail])
+}
+
+model FeedbackReview {
+  id Int @id @default(autoincrement())
+  workId Int
+  work FeedbackWork @relation(fields: [workId], references: [id])
+  version Int
+  status String @default("RECEIVED")
+  receivedDate String
+  estimateStart String
+  estimateEnd String
+  completedAt DateTime?
+  turnaroundWorkingDays Int?
+  cancellationReason String?
+  trackingToken String @unique
+  lastRequestDate String?
+  receiptEmailClaimedAt DateTime?
+  completionEmailClaimedAt DateTime?
+  receiptEmailSentAt DateTime?
+  completionEmailSentAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  history FeedbackEvent[]
+  @@unique([workId, version])
+  @@index([status, estimateEnd])
+}
+
+model FeedbackEvent {
+  id Int @id @default(autoincrement())
+  reviewId Int
+  review FeedbackReview @relation(fields: [reviewId], references: [id])
+  type String
+  message String
+  createdAt DateTime @default(now())
+  @@index([reviewId])
+}
+
+model FeedbackSettings {
+  userId Int @id
+  user User @relation(fields: [userId], references: [id])
+  dailySummaryEnabled Boolean @default(false)
+  lastSummaryDate String?
+}
+
+model FeedbackPreset {
+  id Int @id @default(autoincrement())
+  supervisorId Int
+  supervisor User @relation(fields: [supervisorId], references: [id])
+  name String
+  minDays Int?
+  maxDays Int?
+  @@unique([supervisorId, name])
 }
