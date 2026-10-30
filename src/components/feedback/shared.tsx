@@ -43,6 +43,5 @@ export function QueueSummary({position,total,ahead}: {position: number | null;to
       <p className="text-2xl font-semibold text-gray-900">{position} <span className="text-base font-normal text-gray-500">of {total}</span></p>
       <p className="text-sm font-medium text-blue-800">{count === 0 ? 'Next in queue' : `${count} review${count === 1 ? '' : 's'} ahead`}</p>
     </div>
-    <p className="mt-2 text-xs leading-relaxed text-gray-600">Includes all outstanding reviews, including work already being read. Reviews normally follow receipt-date order; your supervisor may adjust priorities. Queue position does not change the estimated return dates.</p>
   </div>;
 }
