@@ -15,6 +15,7 @@ import { ProfileOverviewModal } from "@/components/account/ProfileOverviewModal"
 import { EditNameModal } from "@/components/account/EditNameModal";
 import { ChangeEmailModal } from "@/components/account/ChangeEmailModal";
 import { ChangePasswordModal } from "@/components/account/ChangePasswordModal";
+import { NotificationPreferencesModal } from "@/components/account/NotificationPreferencesModal";
 import { SupportTicketModal } from "@/components/account/SupportTicketModal";
 import { FeedbackWidget } from "@/components/account/FeedbackWidget";
 import { canSponsorAccounts } from "@/lib/subscriptions";
@@ -22,7 +23,7 @@ import type { SubscriptionType } from "@prisma/client";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-type AccountModalType = "profile" | "name" | "email" | "password" | "support";
+type AccountModalType = "profile" | "name" | "email" | "password" | "support" | "notifications";
 
 export default function Layout({
   title,
@@ -321,6 +322,16 @@ export default function Layout({
                       {({ active }) => (
                         <button
                           className={menuItemClass(active)}
+                          onClick={() => setActiveModal("notifications")}
+                        >
+                          Notification preferences
+                        </button>
+                      )}
+                    </Menu.Item>
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          className={menuItemClass(active)}
                           onClick={() => setActiveModal("support")}
                         >
                           Get help
@@ -560,6 +571,11 @@ export default function Layout({
           <ChangePasswordModal
             open={activeModal === "password"}
             onClose={closeModal}
+          />
+          <NotificationPreferencesModal
+            open={activeModal === "notifications"}
+            onClose={closeModal}
+            feedbackOnly={feedbackOnly}
           />
           <SupportTicketModal
             open={activeModal === "support"}

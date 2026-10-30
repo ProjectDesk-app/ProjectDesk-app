@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import useSWR from 'swr';
 import { Check, ClipboardCheck } from 'lucide-react';
 import Layout from '@/components/Layout';
-import { api, formatDate, STAGES, StatusBadge, today, buttonClass, secondaryClass } from '@/components/feedback/shared';
+import { api, formatDate, STAGES, StatusBadge, QueueSummary, today, buttonClass, secondaryClass } from '@/components/feedback/shared';
 
 export default function FeedbackTracker() {
   const router = useRouter();
@@ -20,6 +20,7 @@ export default function FeedbackTracker() {
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Version {review.version}</p><h2 className="mt-1 text-xl font-semibold text-gray-900">{review.title}</h2><p className="mt-2 text-sm text-gray-600">Reviewed by {review.supervisorName}</p></div><StatusBadge status={review.status} overdue={overdue} /></div>
           <dl className="mt-6 grid gap-5 rounded-xl bg-gray-50 p-4 sm:grid-cols-2"><div><dt className="text-xs font-medium text-gray-500">Received</dt><dd className="mt-1 text-sm font-semibold">{formatDate(review.receivedDate)}</dd></div><div><dt className="text-xs font-medium text-gray-500">Estimated feedback return</dt><dd className="mt-1 text-sm font-semibold">{formatDate(review.estimateStart)} – {formatDate(review.estimateEnd)}</dd></div>{review.completedAt && <div><dt className="text-xs font-medium text-gray-500">Feedback returned</dt><dd className="mt-1 text-sm font-semibold">{formatDate(review.completedAt)}</dd></div>}</dl>
+          {!['COMPLETED','CANCELLED'].includes(review.status) && <div className="mt-5"><QueueSummary position={review.queuePosition} total={review.queueTotal} ahead={review.queueAhead} /></div>}
           {overdue && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">The estimated return date has passed. Sign in with the email address used for this review to request an update.</p>}
           {review.status === 'CANCELLED' ? <p className="mt-5 rounded-lg bg-gray-50 p-4 text-sm text-gray-700">This review has been cancelled.{review.cancellationReason ? ` ${review.cancellationReason}` : ''}</p> : <ol className="mt-7 space-y-0" aria-label="Feedback review stages">{STAGES.map((stage,index) => <li key={stage.value} className="relative flex gap-4 pb-6 last:pb-0">{index < STAGES.length-1 && <span className={`absolute left-[15px] top-8 h-full w-0.5 ${index < current ? 'bg-blue-500' : 'bg-gray-200'}`} />}<span className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm ${index < current ? 'bg-blue-600 text-white' : index === current ? 'bg-blue-100 font-bold text-blue-800 ring-2 ring-blue-600' : 'bg-gray-100 text-gray-500'}`}>{index < current ? <Check className="h-4 w-4" /> : index+1}</span><div className="pt-1"><p className={`text-sm ${index === current ? 'font-semibold text-blue-800' : 'text-gray-600'}`}>{stage.label}</p>{index === current && <p className="mt-1 text-xs text-gray-500">Current stage</p>}</div></li>)}</ol>}
         </section>

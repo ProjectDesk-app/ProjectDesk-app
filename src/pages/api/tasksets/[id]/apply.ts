@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
+import { updateProjectStatus } from "@/lib/updateProjectStatus";
 import { findManagedTaskSet, positiveId } from "@/lib/taskSetAccess";
 import { dateOnly, parseCalendarDate, resolveTemplate } from "@/lib/taskSetSchedule";
 
@@ -42,6 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (existing.length) return res.status(409).json({ error: `No tasks added. This project already contains: ${existing.map(t => t.title).join(", ")}.` });
     // createMany is atomic, preventing partial schedules during duplicate applications.
     const result = await prisma.task.createMany({ data: tasks });
+    await updateProjectStatus(projectId);
     return res.status(201).json({ tasksCreated: result.count, message: `“${taskSet.name}” applied successfully.` });
   } catch (error: any) {
     if (error?.code === "P2002") return res.status(409).json({ error: "No tasks added. Some tasks already exist in this project." });

@@ -1,3 +1,4 @@
+import { feedbackQueueMap } from '@/lib/feedbackQueue';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -12,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const user = await feedbackUser(req, res, req.method === 'PATCH');
     const review = await getReview(req.query.id);
     if (!canRead(review, user)) throw new FeedbackError('Review not found.', 404);
-    if (req.method === 'GET') return res.json({ review: await serializeReview(review, user) });
+    if (req.method === 'GET') return res.json({ review: await serializeReview(review, user, (await feedbackQueueMap([review.work.supervisorId])).get(review.id)) });
     if (req.method !== 'PATCH') { res.setHeader('Allow', 'GET, PATCH'); return res.status(405).end(); }
     if (!owns(review, user) || !canManageFeedback(user)) throw new FeedbackError('Access denied.', 403);
     const body = req.body || {};
@@ -20,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!['receipt', 'completion'].includes(body.retryEmail) || (body.retryEmail === 'completion' && !review.completedAt)) throw new FeedbackError('Invalid email retry.');
       let warning: string | undefined;
       try { await sendReviewEmail(review.id, body.retryEmail); } catch { warning = 'Email delivery failed. Please try again later.'; }
-      return res.json({ review: await serializeReview(await getReview(review.id), user), warning });
+      return res.json({ review: await serializeReview(await getReview(review.id), user, (await feedbackQueueMap([review.work.supervisorId])).get(review.id)), warning });
     }
     const correctedName = body.recipientName === undefined ? review.work.recipientName : text(body.recipientName, 'Recipient name');
     const correctedEmail = body.recipientEmail === undefined ? review.work.recipientEmail : text(body.recipientEmail, 'Recipient email', 254).toLowerCase();
@@ -52,6 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const events: { type: string; message: string }[] = [];
       if (status !== current.status) {
         data.status = status;
+        if (terminal(current.status) || terminal(status)) data.queuePosition = null;
         data.completedAt = status === 'COMPLETED' ? new Date() : null;
         data.turnaroundWorkingDays = status === 'COMPLETED' ? completionTurnaround : null;
         data.cancellationReason = status === 'CANCELLED' ? text(body.cancellationReason, 'Cancellation reason', 1000) : null;
@@ -68,6 +70,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (updated.status === 'COMPLETED') await sendReviewEmail(updated.id, 'completion');
       if (body.notifyRecipient === true && (updated.estimateStart !== review.estimateStart || updated.estimateEnd !== review.estimateEnd)) await sendEmail(updated.work.recipientEmail, `Feedback estimate updated: ${updated.work.title}`, `Hello ${updated.work.recipientName},\n\nYour estimated feedback return for ${updated.work.title} (V${updated.version}) is now ${updated.estimateStart} to ${updated.estimateEnd}.\n\nTrack Progress:\n${trackLink(updated.trackingToken)}`);
     } catch { warning = 'Changes saved, but email delivery failed.'; }
-    return res.json({ review: await serializeReview(await getReview(updated.id), user), warning });
+    return res.json({ review: await serializeReview(await getReview(updated.id), user, (await feedbackQueueMap([updated.work.supervisorId])).get(updated.id)), warning });
   } catch (error) { return feedbackFailure(res, error); }
 }

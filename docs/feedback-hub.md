@@ -27,3 +27,11 @@ No production migration, deployment, or repository-secret changes are performed 
 Run `node --test scripts/feedback*.test.cjs scripts/task-set-schedule.test.cjs`, `npx tsc --noEmit --incremental false`, `npx prisma validate`, and `npm run build`.
 
 Before rollout, use a staging database and mail account to walk through receipt → stage changes → estimate revision → overdue request → completion → reopen → completion again; confirm only one completion email. Check V2/V3 grouping, recipient registration and verification, cancellation, correction of an email address, expired supervisor access, unrelated-account denial, and a summary invocation during London's 09:00 hour. Confirm the migration is applied before exposing Hub routes.
+
+## Queue position
+
+The tracker and signed-in review list show a review's position among all of its supervisor's outstanding reviews, including those already being read. Completed and cancelled versions leave the queue. Only the position, total, and number ahead are visible to recipients; other work titles and recipients are never disclosed.
+
+Default order is received date, then record creation time, then record ID to break ties. Supervisors can move an active review to a chosen position under review details. This preserves a manual order for the current queue; newly added or reopened reviews follow that manual queue in receipt-date order. “Restore receipt-date order” removes the manual ordering for the active queue. Position changes do not change feedback estimates or send emails. Tracking pages and signed-in lists refresh every minute.
+
+The queue enhancement has its own migration, `20261030130000_feedback_queue`. Apply it with `npx prisma migrate deploy` before deploying this version, even if the original Feedback Hub migration was already applied. It adds a nullable position field; existing reviews automatically use receipt-date order.

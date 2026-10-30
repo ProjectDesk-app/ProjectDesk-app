@@ -1,0 +1,43 @@
+name: Project notifications
+on:
+  schedule:
+    # Paired UTC schedules cover UK daylight saving. The API filters by UK hour.
+    - cron: '0 0,1 * * 1-5'
+    - cron: '0 8,9 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Job to run (still respects the UK time window)
+        required: true
+        default: status
+        type: choice
+        options: [status, digest]
+permissions: {}
+concurrency:
+  group: project-notifications
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run project notifications job
+        env:
+          PROJECT_NOTIFICATIONS_CRON_URL: ${{ secrets.PROJECT_NOTIFICATIONS_CRON_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+          MANUAL_JOB: ${{ inputs.job }}
+        run: |
+          if [ -z "$PROJECT_NOTIFICATIONS_CRON_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo 'Set PROJECT_NOTIFICATIONS_CRON_URL and CRON_SECRET repository secrets.'
+            exit 1
+          fi
+          case "$SCHEDULE" in
+            '0 8,9 * * 1-5') selected_job=digest ;;
+            '0 0,1 * * 1-5') selected_job=status ;;
+            *) selected_job="${MANUAL_JOB:-status}" ;;
+          esac
+          curl --fail --silent --show-error --retry 2 --retry-all-errors --retry-delay 20 \
+            --connect-timeout 15 --max-time 240 \
+            --request POST --header "Authorization: Bearer $CRON_SECRET" \
+            "${PROJECT_NOTIFICATIONS_CRON_URL}?job=${selected_job}"

@@ -170,7 +170,7 @@ export async function middleware(request: NextRequest) {
   const allowed = path === "/feedback" || path.startsWith("/feedback/") ||
     path === "/api/feedback" || path.startsWith("/api/feedback/") ||
     path.startsWith("/api/auth/") || path === "/api/feedback-signup" ||
-    path === "/api/account/profile" || path === "/api/notifications" ||
+    path === "/api/account/profile" || path === "/api/account/notification-preferences" || path === "/api/notifications" ||
     path.startsWith("/api/notifications/") ||
     ["/signin", "/verify-email", "/forgot-password", "/reset-password"].includes(path);
   if (allowed) return NextResponse.next();

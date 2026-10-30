@@ -1,220 +1,73 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
-import { prisma } from "@/lib/prisma";
-import { calendarDuration } from "@/lib/taskSetSchedule";
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]';
+import { prisma } from '@/lib/prisma';
+import { calendarDuration } from '@/lib/taskSetSchedule';
+import { updateProjectStatus } from '@/lib/updateProjectStatus';
+import { accessibleTask, TaskAccessError, taskContext, validateAssignees } from '@/lib/taskAccess';
+import { emitTaskChanges } from '@/lib/taskActivity';
+import { TaskStatus } from '@prisma/client';
 
-// Helper to get task by ID
-async function getTaskById(taskId: string) {
-  return prisma.task.findUnique({
-    where: { id: Number(taskId) },
-    include: {
-      project: {
-        include: {
-          students: true,
-          collaborators: true,
-          supervisor: true,
-        },
-      },
-      assignee: true,
-      assignedUsers: true,
-    },
-  });
+function optionalDate(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string') throw new TaskAccessError('Invalid date value', 400);
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new TaskAccessError('Invalid date value', 400);
+  return date;
 }
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  const {
-    query: { id },
-    method,
-    body,
-  } = req;
-
-  if (typeof id !== "string") {
-    return res.status(400).json({ error: "Invalid task ID" });
-  }
-
-  const session = (await getServerSession(req, res, authOptions as any)) as any;
-  if (!session) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  if (method === "GET") {
-    // Fetch a task by ID
-    const task = await getTaskById(id);
-    if (!task) {
-      return res.status(404).json({ error: "Task not found" });
+function assignedUsers(value: unknown) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some(id => !Number.isSafeInteger(Number(id)) || Number(id) < 1)) throw new TaskAccessError('Invalid assigned users', 400);
+  return { set: Array.from(new Set(value.map(Number))).map(id => ({ id })) };
+}
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (!['GET', 'PATCH', 'PUT', 'POST', 'DELETE'].includes(req.method || '')) { res.setHeader('Allow', ['GET', 'PATCH', 'PUT', 'POST', 'DELETE']); return res.status(405).end(); }
+  const session = await getServerSession(req, res, authOptions as any) as any;
+  if (!session?.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    if (req.body?.id !== undefined && Number(req.body.id) !== Number(req.query.id)) throw new TaskAccessError('Task ID does not match this URL', 400);
+    const before = await accessibleTask(req.query.id, session.user);
+    if (req.method === 'GET') return res.json({ task: before });
+    if (req.method === 'DELETE') {
+      if (session.user.role !== 'ADMIN' && before.project.supervisorId !== Number(session.user.id)) throw new TaskAccessError('Forbidden', 403);
+      await prisma.task.delete({ where: { id: before.id } });
+      await updateProjectStatus(before.projectId);
+      return res.json({ message: 'Task deleted successfully' });
     }
-    return res.status(200).json({ task });
-  }
-
-  if (req.method === "PATCH" || req.method === "PUT") {
-    const {
-      id: bodyId,
-      title,
-      description,
-      status,
-      dueDate,
-      startDate,
-      duration,
-      assignedUserIds,
-    } = req.body;
-
-    const taskIdToUse = bodyId || id;
-
-    if (!taskIdToUse) {
-      return res.status(400).json({ error: "Task ID is required for update." });
-    }
-
-    // Normalize status to match Prisma enum
-    const normalizedStatus = status
-      ? status.toUpperCase().replace(/\s+/g, "_")
-      : undefined;
-
-    try {
-      const parseOptionalDate = (value: unknown) => {
-        if (value === undefined) return undefined;
-        if (value === null || value === "") return null;
-        const parsed = new Date(value as string);
-        if (Number.isNaN(parsed.getTime())) {
-          throw new Error("Invalid date value");
-        }
-        return parsed;
-      };
-
-      const parsedStart = parseOptionalDate(startDate);
-      const parsedDue = parseOptionalDate(dueDate);
-
-      let autoDuration: number | undefined = duration ? Number(duration) : undefined;
-      if (parsedStart instanceof Date && parsedDue instanceof Date) {
-        const existing = await prisma.task.findUnique({ where: { id: Number(taskIdToUse) }, select: { kind: true } });
-        if (!existing) return res.status(404).json({ error: "Task not found" });
-        autoDuration = existing.kind === "MILESTONE" ? 0 : Math.max(0, calendarDuration(parsedStart, parsedDue));
+    const body = req.body || {};
+    if (req.method === 'POST') {
+      const users = assignedUsers(body.assignedUserIds);
+      if (users) validateAssignees(before.project, users.set.map(user => user.id));
+      if (!body.unflag && !users && !before.flagged) {
+        const claim = await prisma.task.updateMany({ where: { id: before.id, flagged: false }, data: { flagged: true, flaggedAt: new Date(), flaggedByUserId: Number(session.user.id) } });
+        if (!claim.count) return res.status(409).json({ error: 'This task changed. Refresh before trying again.' });
+        const updated = await prisma.task.findUniqueOrThrow({ where: { id: before.id }, include: taskContext });
+        await emitTaskChanges(before, updated, session.user);
+        await updateProjectStatus(before.projectId);
+        return res.json({ task: updated, message: 'Task flagged' });
       }
-
-      const assignedUsersUpdate = Array.isArray(assignedUserIds)
-        ? {
-            set: [],
-            ...(assignedUserIds.length > 0
-              ? {
-                  connect: assignedUserIds
-                    .map((userId: any) => Number(userId))
-                    .filter((value) => !Number.isNaN(value))
-                    .map((userId) => ({ id: userId })),
-                }
-              : {}),
-          }
-        : undefined;
-
-      const updated = await prisma.task.update({
-        where: { id: Number(taskIdToUse) },
-        data: {
-          title,
-          description,
-          dueDate: parsedDue,
-          startDate: parsedStart,
-          duration: autoDuration,
-          status: normalizedStatus,
-          ...(assignedUsersUpdate ? { assignedUsers: assignedUsersUpdate } : {}),
-        },
-        include: { assignedUsers: true },
-      });
-
-      return res.status(200).json(updated);
-    } catch (error: any) {
-      if (error?.message === "Invalid date value") {
-        return res.status(400).json({ error: "Invalid date value" });
-      }
-      console.error("Task update error:", error.message || error);
-      return res.status(500).json({ error: "Failed to update task" });
+      const flagData = body.unflag ? { flagged: false, flaggedAt: null, flaggedByUserId: null } : users ? {} : { flagged: true, flaggedAt: before.flaggedAt || new Date(), flaggedByUserId: before.flaggedByUserId || Number(session.user.id) };
+      const updated = await prisma.task.update({ where: { id: before.id }, data: { ...flagData, ...(users ? { assignedUsers: users } : {}) }, include: taskContext });
+      await emitTaskChanges(before, updated, session.user);
+      await updateProjectStatus(before.projectId);
+      return res.json({ task: updated, message: body.unflag ? 'Task unflagged' : users ? 'Assigned users updated' : 'Task flagged' });
     }
+    const parsedStart = optionalDate(body.startDate), parsedDue = optionalDate(body.dueDate);
+    const normalizedStatus = typeof body.status === 'string' ? body.status.toUpperCase().replace(/\s+/g, '_') : undefined;
+    if (normalizedStatus && !Object.values(TaskStatus).includes(normalizedStatus as TaskStatus)) throw new TaskAccessError('Invalid task status', 400);
+    let duration = body.duration !== undefined ? Number(body.duration) : undefined;
+    if (duration !== undefined && (!Number.isFinite(duration) || duration < 0)) throw new TaskAccessError('Invalid duration', 400);
+    if (parsedStart instanceof Date && parsedDue instanceof Date) duration = before.kind === 'MILESTONE' ? 0 : Math.max(0, calendarDuration(parsedStart, parsedDue));
+    const users = assignedUsers(body.assignedUserIds);
+    if (users) validateAssignees(before.project, users.set.map(user => user.id));
+    const updated = await prisma.task.update({ where: { id: before.id }, data: { title: body.title, description: body.description, dueDate: parsedDue, startDate: parsedStart, duration, status: normalizedStatus as TaskStatus, ...(users ? { assignedUsers: users } : {}) }, include: taskContext });
+    await emitTaskChanges(before, updated, session.user);
+    await updateProjectStatus(before.projectId);
+    return res.json(updated);
+  } catch (error) {
+    if (error instanceof TaskAccessError) return res.status(error.status).json({ error: error.message });
+    console.error('Task operation failed', error);
+    return res.status(500).json({ error: 'Unable to update task.' });
   }
-
-  if (method === "POST") {
-    // Toggle flag/unflag or update assigned users
-    const { unflag, assignedUserIds } = body;
-    const task = await prisma.task.findUnique({ where: { id: Number(id) } });
-    if (!task) {
-      return res.status(404).json({ error: "Task not found" });
-    }
-    if (unflag) {
-      // Unflag: set flagged=false, delete notification
-      const updated = await prisma.task.update({
-        where: { id: Number(id) },
-        data: { flagged: false, flaggedAt: null },
-        include: { assignedUsers: true },
-      });
-      await prisma.notification.deleteMany({
-        where: {
-          taskId: Number(id),
-          type: "flag",
-        },
-      });
-      return res.status(200).json({ task: updated, message: "Task unflagged" });
-    } else if (assignedUserIds) {
-      // Update assigned users
-      const updated = await prisma.task.update({
-        where: { id: Number(id) },
-        data: {
-          assignedUsers: {
-            set: [],
-            connect: assignedUserIds.map((userId: string) => ({ id: userId })),
-          },
-        },
-        include: { assignedUsers: true },
-      });
-      return res.status(200).json({ task: updated, message: "Assigned users updated" });
-    } else {
-      // Flag: set flagged=true, create notification
-      const updated = await prisma.task.update({
-        where: { id: Number(id) },
-        data: { flagged: true, flaggedAt: new Date() },
-        include: { assignedUsers: true },
-      });
-      // Actor's name
-      const actorName = session.user?.name || session.user?.email || "Someone";
-      const actorId = Number(session.user?.id) || undefined;
-      // Find assigned user to notify
-      const assigneeId = task.assigneeId;
-      if (assigneeId) {
-        await prisma.notification.create({
-          data: {
-            type: "task_flagged",
-            message: `Task "${task.title}" was flagged by ${actorName}`,
-            taskId: Number(id),
-            projectId: task.projectId,
-            recipientId: assigneeId,
-            actorId: actorId ?? assigneeId,
-          },
-        });
-      }
-      return res.status(200).json({ task: updated, message: "Task flagged" });
-    }
-  }
-
-  if (method === "DELETE") {
-    const taskId = Number(id);
-
-    if (isNaN(taskId)) {
-      return res.status(400).json({ error: "Invalid task ID" });
-    }
-
-    if (session.user.role !== "SUPERVISOR") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
-    try {
-      await prisma.task.delete({
-        where: { id: taskId },
-      });
-      return res.status(200).json({ message: "Task deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting task:", error);
-      return res.status(500).json({ error: "Failed to delete task" });
-    }
-  }
-
-  return res.setHeader("Allow", ["GET", "PUT", "POST", "DELETE"]).status(405).end(`Method ${method} Not Allowed`);
 }

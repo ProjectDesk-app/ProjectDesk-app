@@ -1,3 +1,4 @@
+import { feedbackQueueMap } from '@/lib/feedbackQueue';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isEmailBlocked } from '@/lib/blockedEmails';
 import { randomBytes } from 'crypto';
@@ -10,7 +11,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const user = await feedbackUser(req, res, req.method === 'POST');
     if (req.method === 'GET') {
       const reviews = await prisma.feedbackReview.findMany({ where: { work: { OR: [{ supervisorId: user.id }, { recipientEmail: { equals: user.email, mode: 'insensitive' } }] } }, include: reviewInclude, orderBy: [{ estimateEnd: 'asc' }, { id: 'desc' }] });
-      return res.json({ reviews: await Promise.all(reviews.map(r => serializeReview(r, user))), canManage: canManageFeedback(user) });
+      const queue = await feedbackQueueMap(Array.from(new Set(reviews.map(r => r.work.supervisorId))));
+      return res.json({ reviews: await Promise.all(reviews.map(r => serializeReview(r, user, queue.get(r.id)))), canManage: canManageFeedback(user) });
     }
     if (req.method !== 'POST') { res.setHeader('Allow', 'GET, POST'); return res.status(405).end(); }
     const body = req.body || {};
@@ -42,6 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     let warning: string | undefined;
     try { await sendReviewEmail(review.id, 'receipt'); } catch { warning = 'Review saved, but the receipt email failed. You can retry it from the review.'; }
-    return res.status(201).json({ review: await serializeReview(review, user), warning });
+    return res.status(201).json({ review: await serializeReview(review, user, (await feedbackQueueMap([review.work.supervisorId])).get(review.id)), warning });
   } catch (error) { return feedbackFailure(res, error); }
 }

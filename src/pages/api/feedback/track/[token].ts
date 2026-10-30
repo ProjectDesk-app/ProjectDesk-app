@@ -1,3 +1,4 @@
+import { feedbackQueueMap } from '@/lib/feedbackQueue';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
 import { publicReview, reviewInclude, feedbackFailure } from '@/lib/feedback';
@@ -8,6 +9,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const review = await prisma.feedbackReview.findUnique({ where: { trackingToken: req.query.token }, include: reviewInclude });
     if (!review) return res.status(404).json({ error: 'Tracking link not found.' });
-    return res.json({ review: publicReview(review) });
+    return res.json({ review: publicReview(review, (await feedbackQueueMap([review.work.supervisorId])).get(review.id)) });
   } catch (error) { return feedbackFailure(res, error); }
 }

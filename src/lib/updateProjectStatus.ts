@@ -1,92 +1,40 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from '@/lib/prisma';
+import { calculateProjectStatus } from '@/lib/projectStatus';
+import { enqueueActivity, dispatchActivity } from '@/lib/activityNotifications';
+import { Prisma } from '@prisma/client';
 
-const normalizeStatus = (status: unknown) =>
-  typeof status === "string" ? status.toLowerCase() : String(status ?? "").toLowerCase();
-
-export async function updateProjectStatus(projectId: number) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    include: { tasks: true },
-  });
-
-  if (!project) return;
-
-  const now = new Date();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-
-  // Grace period for overdue tasks
-  const overdueTasks = project.tasks.filter(
-    t =>
-      t.dueDate &&
-      new Date(t.dueDate).getTime() < now.getTime() - oneDayMs &&
-      normalizeStatus(t.status) !== "done" &&
-      normalizeStatus(t.status) !== "completed"
-  );
-
-  // Tasks exceeding project end date
-  const tasksBeyondProject = project.tasks.filter(
-    t =>
-      t.dueDate &&
-      project.endDate &&
-      new Date(t.dueDate).getTime() > new Date(project.endDate).getTime()
-  );
-
-  // Tasks where duration extends past project end
-  const durationOverflow = project.tasks.filter(
-    t =>
-      t.startDate &&
-      !t.dueDate &&
-      t.duration &&
-      project.endDate &&
-      new Date(t.startDate).getTime() + t.duration * oneDayMs >
-        new Date(project.endDate).getTime()
-  );
-
-  // Identify tasks behind schedule (based on status and due date)
-  const activeStatuses = new Set([
-    "todo",
-    "to_do",
-    "in_progress",
-    "behind_schedule",
-    "at_risk",
-    "blocked",
-    "review",
-    "deferred",
-  ]);
-
-  const behindScheduleTasks = project.tasks.filter(t => {
-    if (!t.dueDate) return false;
-    const status = normalizeStatus(t.status);
-    return new Date(t.dueDate).getTime() < now.getTime() && activeStatuses.has(status);
-  });
-
-  let newStatus = "On Track";
-
-  if (project.tasks.length === 0) {
-    newStatus = "Not Started";
-  } else if (project.tasks.every(t => {
-      const status = normalizeStatus(t.status);
-      return status === "done" || status === "completed" || status === "complete";
-    })) {
-    newStatus = "Completed";
-  } else if (durationOverflow.length > 0 || tasksBeyondProject.length > 0) {
-    newStatus = "Danger";
-  } else if (behindScheduleTasks.length >= 2) {
-    newStatus = "At Risk";
-  } else if (overdueTasks.length > 0) {
-    newStatus = "Behind Schedule";
-  } else {
-    newStatus = "On Track";
-  }
-
-  await prisma.project.update({
-    where: { id: projectId },
-    data: { status: newStatus },
-  });
-
-  return {
-    status: newStatus,
-    overdueTasks: overdueTasks.length,
-    beyondEnd: tasksBeyondProject.length,
-  };
+/** Recalculate on task changes and in the working-day status job. */
+export async function updateProjectStatus(projectId: number, now = new Date()) {
+  const update = await prisma.$transaction(async tx => {
+    const project = await tx.project.findUnique({
+      where: { id: projectId },
+      include: { tasks: true, students: { select: { id: true } }, collaborators: { select: { id: true } }, members: { select: { userId: true } } },
+    });
+    if (!project || project.archived || project.isCompleted) return { result: undefined, deliveryIds: [] as number[] };
+    const result = calculateProjectStatus(project, now);
+    if (project.status === result.status) return { result, deliveryIds: [] as number[] };
+    // Compare the prior version so simultaneous task updates cannot announce the
+    // same transition twice. A later scheduled run reconciles concurrent edits.
+    const changed = await tx.project.updateMany({
+      where: { id: project.id, status: project.status, updatedAt: project.updatedAt, archived: false, isCompleted: false },
+      data: { status: result.status },
+    });
+    if (!changed.count) return { result, deliveryIds: [] as number[] };
+    let deliveryIds: number[] = [];
+    if (['Behind Schedule', 'At Risk', 'Danger'].includes(result.status)) {
+      const origin = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+      const taskNames = result.affectedTasks.slice(0, 8).map(task => `• ${task.title || 'Untitled task'}`).join('\n');
+      deliveryIds = await enqueueActivity({
+        eventKey: `project-status:${project.id}:${project.updatedAt.toISOString()}:${result.status}`,
+        category: 'PROJECT_STATUS', actorId: project.supervisorId, suppressActor: false,
+        recipientIds: [project.supervisorId, ...project.students.map(user => user.id), ...project.collaborators.map(user => user.id), ...project.members.map(member => member.userId)],
+        projectId: project.id,
+        subject: `Project ${result.status.toLowerCase()}: ${project.title}`,
+        message: `The project "${project.title}" changed from ${project.status} to ${result.status}.\n\n${result.reason}\n\n${taskNames}\n\nView the project tasks:\n${origin}/projects/${project.id}/tasks`,
+      }, tx);
+    }
+    return { result, deliveryIds };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  await dispatchActivity(update.deliveryIds);
+  return update.result;
 }

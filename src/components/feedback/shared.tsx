@@ -10,10 +10,11 @@ export type Review = {
   workType: string; version: number; status: string; receivedDate: string; estimateStart: string;
   estimateEnd: string; completedAt: string | null; supervisorName: string; isOwner: boolean;
   trackingToken?: string; receiptEmailSentAt?: string | null; completionEmailSentAt?: string | null; calendarWarning?: string; cancellationReason?: string; overdue: boolean; canRequestUpdate: boolean;
+  queuePosition: number | null; queueTotal: number; queueAhead: number | null;
   nextRequestDate?: string; turnaroundWorkingDays?: number; history: {id: number;type: string;message: string;createdAt: string}[];
 };
 export type Preset = {id: string | number;name: string;minDays: number | null;maxDays: number | null};
-export const inputClass = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100';
+export const inputClass = 'min-w-0 max-w-full w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100';
 export const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50';
 export const secondaryClass = 'inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50';
 export function formatDate(value?: string | null) {
@@ -31,4 +32,17 @@ export async function api<T = any>(url: string, method = 'GET', body?: unknown):
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || 'Something went wrong. Please try again.');
   return payload;
+}
+
+export function QueueSummary({position,total,ahead}: {position: number | null;total: number;ahead: number | null}) {
+  if (position == null || !total) return null;
+  const count = ahead ?? position - 1;
+  return <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Place in queue</p>
+    <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <p className="text-2xl font-semibold text-gray-900">{position} <span className="text-base font-normal text-gray-500">of {total}</span></p>
+      <p className="text-sm font-medium text-blue-800">{count === 0 ? 'Next in queue' : `${count} review${count === 1 ? '' : 's'} ahead`}</p>
+    </div>
+    <p className="mt-2 text-xs leading-relaxed text-gray-600">Includes all outstanding reviews, including work already being read. Reviews normally follow receipt-date order; your supervisor may adjust priorities. Queue position does not change the estimated return dates.</p>
+  </div>;
 }

@@ -1,196 +1,46 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]";
-import { prisma } from "@/lib/prisma";
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]';
+import { prisma } from '@/lib/prisma';
+import { emitActivity } from '@/lib/activityNotifications';
+import { accessibleTask, TaskAccessError, assignedIds } from '@/lib/taskAccess';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { id: taskId } = req.query;
-
-  if (typeof taskId !== "string") {
-    res.status(400).json({ error: "Invalid task ID" });
-    return;
+  if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method || '')) {
+    res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
+    return res.status(405).end();
   }
-
-  if (req.method === "GET") {
-    try {
-      const comments = await prisma.comment.findMany({
-        where: { taskId: Number(taskId) },
-        orderBy: { createdAt: "asc" },
-        include: {
-          User: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      });
-      const formatted = comments.map(({ User, ...rest }) => ({
-        ...rest,
-        user: User,
-      }));
-      res.status(200).json(formatted);
-    } catch (error) {
-      console.error("Error fetching comments:", error);
-      res.status(500).json({ error: "Failed to fetch comments" });
+  const session = await getServerSession(req, res, authOptions as any) as any;
+  if (!session?.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const task = await accessibleTask(req.query.id, session.user);
+    if (req.method === 'GET') {
+      const comments = await prisma.comment.findMany({ where: { taskId: task.id }, orderBy: { createdAt: 'asc' }, include: { User: { select: { id: true, name: true, email: true } } } });
+      return res.json(comments.map(({ User, ...rest }) => ({ ...rest, user: User })));
     }
-  } else if (req.method === "POST") {
-    const session = (await getServerSession(req, res, authOptions as any)) as any;
-    if (!session || !session.user?.id) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-
-    const { content } = req.body;
-    if (typeof content !== "string" || content.trim() === "") {
-      res.status(400).json({ error: "Content is required" });
-      return;
-    }
-
-    try {
-      const comment = await prisma.comment.create({
-        data: {
-          content,
-          User: { connect: { id: Number(session.user.id) } },
-          task: { connect: { id: Number(taskId) } },
-        },
-        include: {
-          User: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          task: {
-            include: {
-              assignedUsers: true,
-              project: {
-                include: {
-                  supervisor: true,
-                  students: true,
-                  collaborators: true,
-                  members: {
-                    include: {
-                      user: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-
-      const { project } = comment.task;
-      const actorId = Number(session.user.id);
-      const recipientMap = new Map<number, { id: number; name: string | null; email: string | null }>();
-
-      const addRecipient = (user?: { id: number; name: string | null; email: string | null } | null) => {
-        if (!user || typeof user.id !== "number") return;
-        if (user.id === actorId) return;
-        if (!recipientMap.has(user.id)) {
-          recipientMap.set(user.id, { id: user.id, name: user.name || null, email: user.email || null });
-        }
-      };
-
-      addRecipient(project.supervisor);
-      project.students?.forEach(addRecipient);
-      project.collaborators?.forEach(addRecipient);
-      project.members?.forEach((member) => addRecipient(member?.user || null));
-      comment.task.assignedUsers?.forEach(addRecipient);
-
-      const recipients = Array.from(recipientMap.values());
-
-      if (recipients.length > 0) {
-        await prisma.notification.createMany({
-          data: recipients.map((u) => ({
-            actorId,
-            recipientId: u.id,
-            message: `${session.user.name || "Someone"} commented on "${comment.task.title}" in "${project.title}"`,
-            taskId: comment.task.id,
-            projectId: project.id,
-            type: "new_comment",
-          })),
-        });
-      }
-
+    const content = req.body?.content;
+    if (req.method !== 'DELETE' && (typeof content !== 'string' || !content.trim() || content.length > 10000)) return res.status(400).json({ error: 'Enter a comment of up to 10,000 characters.' });
+    if (req.method === 'POST') {
+      const comment = await prisma.comment.create({ data: { content: content.trim(), userId: Number(session.user.id), taskId: task.id }, include: { User: { select: { id: true, name: true, email: true } } } });
+      const project = task.project;
+      await emitActivity({ eventKey: `comment:${comment.id}`, category: 'TASK_COMMENT', actorId: Number(session.user.id), projectId: project.id, taskId: task.id,
+        recipientIds: Array.from(new Set([project.supervisorId, ...project.students.map(u => u.id), ...project.collaborators.map(u => u.id), ...project.members.map(u => u.userId), ...assignedIds(task)])),
+        subject: `New comment: ${task.title}`,
+        message: `${session.user.name || 'Someone'} commented on "${task.title}" in "${project.title}":\n\n${comment.content.slice(0, 1000)}` });
       const { User, ...rest } = comment;
-      res.status(201).json({ ...rest, user: User });
-    } catch (error) {
-      console.error("Error creating comment or notifications:", error);
-      res.status(500).json({ error: "Failed to create comment" });
+      return res.status(201).json({ ...rest, user: User });
     }
-  } else if (req.method === "PATCH") {
-    const session = (await getServerSession(req, res, authOptions as any)) as any;
-    if (!session || !session.user?.id) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-
-    const { id, content } = req.body;
-    if (!id || typeof content !== "string" || content.trim() === "") {
-      res.status(400).json({ error: "Invalid data" });
-      return;
-    }
-
-    try {
-      const comment = await prisma.comment.findUnique({
-        where: { id: Number(id) },
-        select: { userId: true },
-      });
-      if (!comment) {
-        res.status(404).json({ error: "Comment not found" });
-        return;
-      }
-      if (comment.userId !== session.user.id) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-
-      const updated = await prisma.comment.update({
-        where: { id: Number(id) },
-        data: { content },
-      });
-      res.status(200).json(updated);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update comment" });
-    }
-  } else if (req.method === "DELETE") {
-    const session = (await getServerSession(req, res, authOptions as any)) as any;
-    if (!session || !session.user?.id) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-
-    const { id } = req.body;
-    if (!id) {
-      res.status(400).json({ error: "Comment ID required" });
-      return;
-    }
-
-    try {
-      const comment = await prisma.comment.findUnique({
-        where: { id: Number(id) },
-        select: { userId: true },
-      });
-      if (!comment) {
-        res.status(404).json({ error: "Comment not found" });
-        return;
-      }
-      if (comment.userId !== session.user.id) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-
-      await prisma.comment.delete({ where: { id: Number(id) } });
-      res.status(204).end();
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete comment" });
-    }
-  } else {
-    res.setHeader("Allow", ["GET", "POST", "PATCH", "DELETE"]);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    const commentId = Number(req.body?.id);
+    if (!Number.isSafeInteger(commentId) || commentId < 1) return res.status(400).json({ error: 'Invalid comment ID' });
+    const comment = await prisma.comment.findUnique({ where: { id: commentId }, select: { userId: true, taskId: true } });
+    if (!comment || comment.taskId !== task.id) return res.status(404).json({ error: 'Comment not found' });
+    if (comment.userId !== Number(session.user.id)) return res.status(403).json({ error: 'Forbidden' });
+    if (req.method === 'PATCH') return res.json(await prisma.comment.update({ where: { id: commentId }, data: { content: content.trim() } }));
+    await prisma.comment.delete({ where: { id: commentId } });
+    return res.status(204).end();
+  } catch (error) {
+    if (error instanceof TaskAccessError) return res.status(error.status).json({ error: error.message });
+    console.error('Task comment failed', error);
+    return res.status(500).json({ error: 'Unable to process this comment.' });
   }
 }

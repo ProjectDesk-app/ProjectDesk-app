@@ -16,6 +16,8 @@ model User {
   sponsorId             Int?
   passwordHash          String?
   feedbackOnly          Boolean @default(false)
+  notificationPreferences NotificationPreferences?
+  activityEmails ActivityEmail[]
   role                  UserRole        @default(STUDENT)
   emailVerified         DateTime?
   pendingEmail          String?
@@ -325,6 +327,7 @@ model FeedbackReview {
   estimateEnd String
   completedAt DateTime?
   turnaroundWorkingDays Int?
+  queuePosition Int?
   cancellationReason String?
   trackingToken String @unique
   lastRequestDate String?
@@ -364,4 +367,41 @@ model FeedbackPreset {
   minDays Int?
   maxDays Int?
   @@unique([supervisorId, name])
+}
+
+
+model NotificationPreferences {
+  userId Int @id
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskComments String @default("IMMEDIATE")
+  taskFlags String @default("IMMEDIATE")
+  projectStatus String @default("IMMEDIATE")
+  deadlineSummary Boolean @default(true)
+  taskAssignments Boolean @default(true)
+  taskDeadlineChanges Boolean @default(true)
+}
+
+model ActivityEmail {
+  id Int @id @default(autoincrement())
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventKey String
+  category String
+  subject String
+  message String
+  projectId Int
+  taskId Int?
+  deliveryMode String
+  status String @default("PENDING")
+  claimedAt DateTime?
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([userId, eventKey])
+  @@index([status, userId])
+}
+
+model ScheduledJobRun {
+  key String @id
+  claimedAt DateTime?
+  completedAt DateTime?
 }

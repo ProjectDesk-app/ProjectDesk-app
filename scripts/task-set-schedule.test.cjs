@@ -15,6 +15,7 @@ function loadSource(relative, mocks = {}, cache = new Map()) {
   }).outputText;
   function localRequire(name) {
     if (Object.hasOwn(mocks, name)) return mocks[name];
+    if (name === "@/lib/updateProjectStatus") return { updateProjectStatus: async () => {} };
     if (name.includes("/auth/[...nextauth]") || name === "@/lib/auth") return { authOptions: {} };
     if (name.startsWith("@/") || name.startsWith(".")) {
       const target = name.startsWith("@/") ? path.resolve(__dirname, "../src", name.slice(2)) : path.resolve(path.dirname(filename), name);
@@ -186,8 +187,9 @@ test("calendar duration includes both dates even at end of day or across a clock
 test("editing project dates preserves inclusive work duration and milestone duration", async () => {
   for (const [kind, expected] of [["TASK", 14], ["MILESTONE", 0]]) {
     let saved;
-    const prisma = { task: { findUnique: async () => ({ kind }), update: async query => { saved = query.data; return saved; } } };
+    const prisma = { task: { findUnique: async () => ({ id: 10, kind, projectId: 9, assignedUsers: [], assigneeId: null, project: { id: 9, supervisorId: 4, students: [], collaborators: [], members: [] } }), update: async query => { saved = query.data; return saved; } } };
     const handler = loadSource("src/pages/api/tasks/[id].ts", { "@/lib/prisma": { prisma },
+      "@/lib/taskActivity": { emitTaskChanges: async () => {} }, "@/lib/updateProjectStatus": { updateProjectStatus: async () => {} },
       "next-auth/next": { getServerSession: async () => ({ user: { id: 4, role: "SUPERVISOR" } }) } }).default;
     const res = { status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; } };
     await handler({ method: "PATCH", query: { id: "10" }, body: { startDate: "2027-03-22T00:00:00Z", dueDate: "2027-04-04T22:59:00Z" } }, res);

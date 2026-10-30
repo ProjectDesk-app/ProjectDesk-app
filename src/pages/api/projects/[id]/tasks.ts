@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateProjectStatus } from "@/lib/updateProjectStatus";
+import { accessibleProject, TaskAccessError, taskContext, validateAssignees } from "@/lib/taskAccess";
+import { emitTaskChanges } from "@/lib/taskActivity";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = (await getServerSession(req, res, authOptions as any)) as any;
@@ -12,6 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const projectId = Number(id);
 
   try {
+    const project = await accessibleProject(projectId, session.user);
     switch (req.method) {
       case "GET": {
         await updateProjectStatus(projectId);
@@ -28,7 +31,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       case "POST": {
+        if (session.user.role !== "ADMIN" && project.supervisorId !== Number(session.user.id)) throw new TaskAccessError("Forbidden", 403);
         const { title, description, startDate, dueDate, assignedUserIds } = req.body;
+        if (assignedUserIds !== undefined && (!Array.isArray(assignedUserIds) || assignedUserIds.some((value: any) => !Number.isSafeInteger(Number(value)) || Number(value) < 1))) throw new TaskAccessError("Invalid assigned users", 400);
+        if (assignedUserIds) validateAssignees(project, assignedUserIds.map(Number));
         if (!title) return res.status(400).json({ error: "Title is required" });
 
         const newTask = await prisma.task.create({
@@ -46,8 +52,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 }
               : undefined,
           },
+          include: taskContext,
         });
-
+        await emitTaskChanges(null, newTask, session.user);
+        await updateProjectStatus(projectId);
         return res.status(201).json(newTask);
       }
 
@@ -56,6 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(405).json({ error: "Method not allowed" });
     }
   } catch (err) {
+    if (err instanceof TaskAccessError) return res.status(err.status).json({ error: err.message });
     console.error("❌ Error fetching/creating tasks:", err);
     res.status(500).json({ error: "Internal server error" });
   }
