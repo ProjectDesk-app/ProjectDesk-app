@@ -85,6 +85,11 @@ export default function Layout({
     (item) => (!feedbackOnly || item.href === "/feedback") && (!item.roles || (userRole && item.roles.includes(userRole)))
   );
 
+  const primaryNavItems = allowedNavItems.filter((item) => !["/supervisor", "/supervisor/task-library", "/admin"].includes(item.href));
+  const toolNavItems = allowedNavItems.filter((item) => ["/supervisor", "/supervisor/task-library", "/admin"].includes(item.href));
+  const isCurrentPage = (href: string) => router.pathname === href ||
+    (href !== "/supervisor" && router.pathname.startsWith(`${href}/`));
+
   const { data: accountProfile, mutate: mutateAccountProfile } = useSWR(
     session ? "/api/account/profile" : null,
     fetcher
@@ -201,31 +206,53 @@ export default function Layout({
       </Head>
       <header className="relative z-40 border-b bg-white/75 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex shrink-0 items-center gap-2">
             <Image src={Logo} alt="ProjectDesk" className="h-8 w-auto" priority />
             <span className="sr-only">ProjectDesk home</span>
           </Link>
           {isAuthenticated && allowedNavItems.length > 0 && (
             <nav
-              className="flex w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-2xl border border-gray-200 bg-white/90 px-2 py-1 text-sm shadow-sm sm:w-auto"
+              className="order-last flex w-full flex-wrap items-center gap-1 rounded-2xl border border-gray-200 bg-white/90 px-2 py-1 text-sm shadow-sm lg:order-none lg:w-auto"
               aria-label="Primary"
             >
-              {allowedNavItems.map(({ label, href, icon: Icon }) => (
+              {primaryNavItems.map(({ label, href, icon: Icon }) => (
                 <Link
                   key={href}
                   href={href}
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition"
+                  aria-current={isCurrentPage(href) ? "page" : undefined}
+                  className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${isCurrentPage(href) ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-blue-50 hover:text-blue-700"}`}
                 >
                   {Icon && <Icon className="h-4 w-4" />}
                   <span>{label}</span>
                 </Link>
               ))}
+              {toolNavItems.length > 0 && (
+                <Menu as="div" className="relative">
+                  <Menu.Button className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-medium transition ${toolNavItems.some(item => isCurrentPage(item.href)) ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-blue-50 hover:text-blue-700"}`}>
+                    <Layers className="h-4 w-4" />
+                    <span>Tools</span>
+                    <ChevronDownIcon className="h-4 w-4" />
+                  </Menu.Button>
+                  <Menu.Items className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg focus:outline-none">
+                    {toolNavItems.map(({ label, href, icon: Icon }) => (
+                      <Menu.Item key={href}>
+                        {({ active }) => (
+                          <Link href={href} aria-current={isCurrentPage(href) ? "page" : undefined}
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm ${active || isCurrentPage(href) ? "bg-blue-50 text-blue-700" : "text-gray-700"}`}>
+                            <Icon className="h-4 w-4" />{label}
+                          </Link>
+                        )}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Items>
+                </Menu>
+              )}
             </nav>
           )}
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-3">
             {isAuthenticated ? (
               <>
-                <Link href="/notifications" className="relative">
+                <Link href="/notifications" aria-label="Notifications" className="relative">
                   <BellIcon className="h-5 w-5 text-gray-700 hover:text-blue-600 transition" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
