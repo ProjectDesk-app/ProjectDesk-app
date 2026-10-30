@@ -29,7 +29,7 @@ export default function FeedbackSignup() {
   return <Layout title="Join Feedback Hub">
     <Head><meta name="robots" content="noindex,nofollow" /><meta name="referrer" content="no-referrer" /></Head>
     <div className="mx-auto max-w-md space-y-6">
-      <div><p className="text-sm font-semibold text-blue-600">Feedback Hub</p><h1 className="mt-2 text-2xl font-semibold text-gray-900">See your feedback journey</h1><p className="mt-3 text-sm text-gray-600">Create a free account using the email address that received your tracking link. See your full review history and request an update when feedback is overdue.</p></div>
+      <div><p className="text-sm font-semibold text-blue-600">Feedback Hub</p><h1 className="mt-2 text-2xl font-semibold text-gray-900">See your feedback journey</h1><p className="mt-3 text-sm text-gray-600">Create a free account using the email address that received your tracking link. </p></div>
       {!token && router.isReady ? <p role="alert" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">Open Track Progress in your receipt email, then choose Create account.</p> : <form onSubmit={submit} className="space-y-4 rounded-xl border bg-white p-6 shadow-sm">
         <label className="block text-sm font-medium" htmlFor="feedback-name">Full name<input className={field} id="feedback-name" autoComplete="name" required maxLength={150} value={name} onChange={e => setName(e.target.value)} /></label>
         <label className="block text-sm font-medium" htmlFor="feedback-email">Email address<input className={field} id="feedback-email" type="email" autoComplete="email" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} /></label>
