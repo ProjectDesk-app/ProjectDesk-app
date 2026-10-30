@@ -34,9 +34,13 @@ export async function api<T = any>(url: string, method = 'GET', body?: unknown):
   return payload;
 }
 
-export function QueueSummary({position,total,ahead}: {position: number | null;total: number;ahead: number | null}) {
+export function QueueSummary({position,total,ahead,compact = false}: {position: number | null;total: number;ahead: number | null;compact?: boolean}) {
   if (position == null || !total) return null;
   const count = ahead ?? position - 1;
+  if (compact) return <div className="min-w-0">
+    <p className="text-xs font-medium text-gray-500">Place in queue</p>
+    <p className="mt-1 text-sm font-semibold text-gray-900">{position} of {total}<span className="mt-0.5 block text-xs font-normal text-blue-700">{count === 0 ? 'Next in queue' : `${count} review${count === 1 ? '' : 's'} ahead`}</span></p>
+  </div>;
   return <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
     <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Place in queue</p>
     <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">

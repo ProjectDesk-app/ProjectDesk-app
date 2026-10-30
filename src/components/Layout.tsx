@@ -29,10 +29,12 @@ export default function Layout({
   title,
   children,
   fluid = false,
+  compactGuestHeader = false,
 }: {
   title?: string;
   children: React.ReactNode;
   fluid?: boolean;
+  compactGuestHeader?: boolean;
 }) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -206,9 +208,9 @@ export default function Layout({
         <link rel="icon" type="image/png" href="/branding/favicon.png" />
       </Head>
       <header className="relative z-40 border-b bg-white/75 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
+        <div className={`mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3 ${compactGuestHeader && !isAuthenticated ? "flex-nowrap" : "flex-wrap"}`}>
           <Link href="/" className="flex shrink-0 items-center gap-2">
-            <Image src={Logo} alt="ProjectDesk" className="h-8 w-auto" priority />
+            <Image src={Logo} alt="ProjectDesk" className={compactGuestHeader && !isAuthenticated ? "h-6 w-auto sm:h-8" : "h-8 w-auto"} priority />
             <span className="sr-only">ProjectDesk home</span>
           </Link>
           {isAuthenticated && allowedNavItems.length > 0 && (
@@ -355,17 +357,17 @@ export default function Layout({
             ) : (
               <>
                 <button
-                  onClick={() => signIn(undefined, { callbackUrl: "/dashboard" })}
+                  onClick={() => signIn(undefined, { callbackUrl: compactGuestHeader ? "/feedback" : "/dashboard" })}
                   className="rounded-full bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition"
                 >
                   Sign in
                 </button>
-                <Link
+                {!compactGuestHeader && <Link
                   href="/request-account"
                   className="rounded-full border border-blue-600 px-4 py-1.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition"
                 >
                   Request account
-                </Link>
+                </Link>}
               </>
             )}
           </div>
@@ -386,7 +388,7 @@ export default function Layout({
           </div>
         </div>
       )}
-      <main className={fluid ? "w-full px-4 py-8" : "mx-auto max-w-5xl px-4 py-8"}>{children}</main>
+      <main className={fluid ? "w-full px-4 py-8" : (compactGuestHeader ? "mx-auto max-w-5xl px-4 py-4 sm:py-8" : "mx-auto max-w-5xl px-4 py-8")}>{children}</main>
 
       <Toaster position="bottom-right" />
 
