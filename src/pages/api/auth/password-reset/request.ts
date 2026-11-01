@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { generateToken, tokenExpiry } from "@/lib/tokens";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -43,11 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
   try {
-    await sendEmail(
-      normalizedEmail,
-      "Reset your ProjectDesk password",
-      `Hello ${user.name || "there"},\n\nYou requested to reset your ProjectDesk password.\nUse the one-time link below to choose a new password:\n${resetLink}\n\nIf you didn't request this change, you can ignore this email.\n\nThanks,\nProjectDesk`
-    );
+    await sendTemplatedEmail(normalizedEmail, 'account.password-reset', { recipientName: user.name || 'there', actionUrl: resetLink });
   } catch (error) {
     console.error("Password reset email failed:", error);
     return res

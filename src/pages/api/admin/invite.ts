@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { SubscriptionType, type UserRole } from "@prisma/client";
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
@@ -50,11 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const setupUrl = `${baseUrl.replace(/\/$/, "")}/signup`;
 
-  await sendEmail(
-    normalized,
-    "You've been invited to ProjectDesk",
-    `Hello ${user.name || "there"},\n\nYou've been invited to join ProjectDesk.\nUse the link below to set your password and activate your account with this email address:\n${setupUrl}\n\nThanks,\nProjectDesk`
-  );
+  await sendTemplatedEmail(normalized, 'account.invitation', { recipientName: user.name || 'there', actionUrl: setupUrl });
 
   return res.status(200).json({ ok: true });
 }

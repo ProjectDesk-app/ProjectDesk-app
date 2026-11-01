@@ -33,7 +33,7 @@ test('completion email atomic claim suppresses concurrent sends and later recomp
     findUnique: async () => review,
     update: async ({ data }) => { sentAt = data.completionEmailSentAt; return review; }
   } };
-  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': { prisma }, '@/lib/mailer': { sendEmail: async () => { sends++; } }, './feedbackDates': dates, './feedbackHolidays': {} });
+  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': { prisma }, '@/lib/emailTemplates': { sendTemplatedEmail: async () => { sends++; } }, './feedbackDates': dates, './feedbackHolidays': {} });
   await Promise.all([feedback.sendReviewEmail(1, 'completion'), feedback.sendReviewEmail(1, 'completion')]);
   await feedback.sendReviewEmail(1, 'completion');
   assert.equal(sends, 1);
@@ -44,7 +44,7 @@ test('failed completion email releases claim for explicit retry', async () => {
   const prisma = { feedbackReview: {
     updateMany: async ({ data }) => { if (data.completionEmailClaimedAt === null) { claimed = false; return { count: 1 }; } if (claimed) return { count: 0 }; claimed = true; return { count: 1 }; }, findUnique: async () => review, update: async () => review
   } };
-  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': { prisma }, '@/lib/mailer': { sendEmail: async () => { if (++attempts === 1) throw new Error('Delivery failed'); } }, './feedbackDates': dates, './feedbackHolidays': {} });
+  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': { prisma }, '@/lib/emailTemplates': { sendTemplatedEmail: async () => { if (++attempts === 1) throw new Error('Delivery failed'); } }, './feedbackDates': dates, './feedbackHolidays': {} });
   await assert.rejects(feedback.sendReviewEmail(1, 'completion'));
   await feedback.sendReviewEmail(1, 'completion');
   assert.equal(attempts, 2);
@@ -59,7 +59,7 @@ test('update requests enforce five working days and reject concurrent claim lose
     '@/lib/feedback': { feedbackUser: async () => ({ name: 'Student' }), getReview: async () => review, owns: () => false, canRead: () => true, terminal: () => false, FeedbackError: error, serializeReview: async r => r, feedbackFailure: (res, e) => res.status(e.status || 500).json({ error: e.message }) },
     '@/lib/feedbackDates': { ...dates, ukToday: () => today },
     '@/lib/feedbackHolidays': { feedbackHolidays: async () => new Set() },
-    '@/lib/mailer': { sendEmail: async () => { sends++; } }
+    '@/lib/emailTemplates': { sendTemplatedEmail: async () => { sends++; } }
   };
   const handler = load('src/pages/api/feedback/[id]/request-update.ts', mocks).default;
   function response() { return { code: 200, setHeader() {}, status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } }; }
@@ -76,7 +76,7 @@ test('update request is denied to owners/unrelated users, non-overdue and termin
   const handler = load('src/pages/api/feedback/[id]/request-update.ts', {
     '@/lib/prisma': { prisma: {} },
     '@/lib/feedback': { feedbackUser: async () => ({}), getReview: async () => review, owns: () => owned, canRead: () => readable, terminal: s => ['COMPLETED', 'CANCELLED'].includes(s), FeedbackError: error, feedbackFailure: (res, e) => res.status(e.status || 500).json({ error: e.message }) },
-    '@/lib/feedbackDates': { ...dates, ukToday: () => '2026-10-30' }, '@/lib/feedbackHolidays': { feedbackHolidays: async () => new Set() }, '@/lib/mailer': { sendEmail: async () => { sends++; } }
+    '@/lib/feedbackDates': { ...dates, ukToday: () => '2026-10-30' }, '@/lib/feedbackHolidays': { feedbackHolidays: async () => new Set() }, '@/lib/emailTemplates': { sendTemplatedEmail: async () => { sends++; } }
   }).default;
   async function code() { const res = { code: 200, status(c) { this.code = c; return this; }, json() { return this; } }; await handler({ method: 'POST', query: { id: '1' } }, res); return res.code; }
   assert.equal(await code(), 400);
@@ -96,7 +96,7 @@ test('daily summary skips outside UK 9am, skips holidays, and dedupes claims', a
   try {
     const handler = load('src/pages/api/feedback/cron.ts', {
       '@/lib/prisma': { prisma: { feedbackSettings: { findMany: async () => [{ userId: 1, user: { email: 'owner@example.test' } }], updateMany: async () => ({ count: claim }) }, feedbackReview: { findMany: async () => [{ version: 1, status: 'RECEIVED', estimateStart: '2026-10-20', estimateEnd: '2026-10-21', work: { recipientName: 'Student', title: 'Draft' } }] } } },
-      '@/lib/feedback': { canManageFeedback: () => true }, '@/lib/feedbackDates': { ...dates, isWorkingDay: () => working }, '@/lib/feedbackHolidays': { feedbackHolidays: async () => new Set() }, '@/lib/mailer': { sendEmail: async () => { sends++; } }
+      '@/lib/feedback': { canManageFeedback: () => true }, '@/lib/feedbackDates': { ...dates, isWorkingDay: () => working }, '@/lib/feedbackHolidays': { feedbackHolidays: async () => new Set() }, '@/lib/emailTemplates': { sendTemplatedEmail: async () => { sends++; } }
     }).default;
     async function run(auth = 'Bearer test-secret') { const res = { code: 200, setHeader() {}, status(c) { this.code = c; return this; }, json(body) { this.body = body; return this; } }; await handler({ method: 'POST', headers: { authorization: auth } }, res); return res; }
     assert.equal((await run('invalid')).code, 401);
@@ -107,14 +107,14 @@ test('daily summary skips outside UK 9am, skips holidays, and dedupes claims', a
   } finally { global.Date = OriginalDate; if (originalSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = originalSecret; }
 });
 test('public projection excludes recipient identity, email, tokens and private history', () => {
-  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': {}, '@/lib/mailer': {}, './feedbackDates': dates, './feedbackHolidays': {} });
+  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': {}, '@/lib/emailTemplates': {}, './feedbackDates': dates, './feedbackHolidays': {} });
   const result = feedback.publicReview({ id: 1, version: 2, status: 'RECEIVED', receivedDate: '2026-10-01', estimateStart: '2026-10-02', estimateEnd: '2026-10-08', completedAt: null, cancellationReason: null, trackingToken: 'secret', history: [{ message: 'Private' }], work: { title: 'Ethics', recipientName: 'Student', recipientEmail: 'private@example.test', supervisor: { name: 'Supervisor', email: 'supervisor@example.test' } } });
   const json = JSON.stringify(result);
   for (const secret of ['private@example.test', 'Student', 'secret', 'Private', 'supervisor@example.test']) assert.ok(!json.includes(secret));
   assert.equal(result.title, 'Ethics'); assert.equal(result.version, 2);
 });
 test('supervisor management eligibility is independent from recipient read access', () => {
-  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': {}, '@/lib/mailer': {}, './feedbackDates': dates, './feedbackHolidays': {} });
+  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': {}, '@/lib/emailTemplates': {}, './feedbackDates': dates, './feedbackHolidays': {} });
   assert.equal(feedback.canManageFeedback({ role: 'STUDENT', subscriptionType: 'SUBSCRIBED' }), false);
   assert.equal(feedback.canManageFeedback({ role: 'SUPERVISOR', subscriptionType: 'FREE_TRIAL', subscriptionExpiresAt: '2000-01-01' }), false);
   assert.equal(feedback.canManageFeedback({ role: 'SUPERVISOR', subscriptionType: 'CANCELLED' }), false);
@@ -122,7 +122,50 @@ test('supervisor management eligibility is independent from recipient read acces
   assert.equal(feedback.canRead({ work: { supervisorId: 1, recipientEmail: 'student@example.test' } }, { id: 2, email: 'STUDENT@example.test' }), true);
 });
 test('stored historical turnaround survives unavailable or rolled-off holiday coverage', async () => {
-  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': {}, '@/lib/mailer': {}, './feedbackDates': dates, './feedbackHolidays': { feedbackHolidays: async () => { throw new Error('Historical calendar unavailable'); } } });
+  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': {}, '@/lib/emailTemplates': {}, './feedbackDates': dates, './feedbackHolidays': { feedbackHolidays: async () => { throw new Error('Historical calendar unavailable'); } } });
   const result = await feedback.serializeReview({ id: 1, version: 1, status: 'COMPLETED', receivedDate: '2020-01-01', estimateStart: '2020-01-03', estimateEnd: '2020-01-10', completedAt: new Date('2020-01-08'), turnaroundWorkingDays: 5, history: [], work: { supervisorId: 1, title: 'Draft', recipientName: 'Student', recipientEmail: 'student@example.test', supervisor: { name: 'Supervisor' } } });
   assert.equal(result.turnaroundWorkingDays, 5);
+});
+
+test('email date ranges use ordinals and repeat months or years only when needed', () => {
+  assert.equal(dates.formatFeedbackDateRange('2026-11-03', '2026-11-06'), '3rd – 6th November 2026');
+  assert.equal(dates.formatFeedbackDateRange('2026-11-29', '2026-12-03'), '29th November – 3rd December 2026');
+  assert.equal(dates.formatFeedbackDateRange('2026-12-29', '2027-01-03'), '29th December 2026 – 3rd January 2027');
+  assert.equal(dates.formatFeedbackDateRange('2026-11-11', '2026-11-13'), '11th – 13th November 2026');
+  assert.equal(dates.formatFeedbackDateRange('2026-11-21', '2026-11-23'), '21st – 23rd November 2026');
+  assert.equal(dates.formatFeedbackDateRange('2026-11-02', '2026-11-02'), '2nd November 2026');
+});
+
+
+test('feedback receipt and completion select protected templates with readable dates and tracking destinations', async () => {
+  const deliveries = [];
+  const review = { id: 1, version: 2, estimateStart: '2026-11-03', estimateEnd: '2026-11-06', trackingToken: 'a'.repeat(64), work: { title: 'Ethics', recipientEmail: 'student@example.test', recipientName: 'Student', supervisor: { name: 'Dr Taylor' } } };
+  const feedback = load('src/lib/feedback.ts', { 'next-auth/next': {}, '@/pages/api/auth/[...nextauth]': {}, '@/lib/prisma': { prisma: { feedbackReview: { updateMany: async () => ({ count: 1 }), findUnique: async () => review, update: async () => review } } }, '@/lib/emailTemplates': { sendTemplatedEmail: async (to, id, variables) => deliveries.push({ to, id, variables }) }, './feedbackDates': dates, './feedbackHolidays': {} });
+  await feedback.sendReviewEmail(1, 'receipt');
+  await feedback.sendReviewEmail(1, 'completion');
+  assert.deepEqual(deliveries.map(delivery => delivery.id), ['feedback_received', 'feedback_completed']);
+  assert.equal(deliveries[0].variables.estimatedRange, '3rd – 6th November 2026');
+  assert.equal(deliveries[0].variables.recipientName, 'Student');
+  for (const delivery of deliveries) assert.match(delivery.variables.actionUrl, /\/feedback\/track\/a{64}$/);
+});
+
+test('revised-estimate email uses its editable template with a readable cross-month range and protected tracking URL', async () => {
+  const deliveries = [];
+  let latest = { id: 1, workId: 1, version: 1, status: 'RECEIVED', receivedDate: '2026-11-01', estimateStart: '2026-11-03', estimateEnd: '2026-11-06', trackingToken: 'b'.repeat(64), work: { supervisorId: 1, recipientName: 'Student', recipientEmail: 'student@example.test', title: 'Ethics', supervisor: { name: 'Dr Taylor' } } };
+  const error = class extends Error { constructor(message, status = 400) { super(message); this.status = status; } };
+  const tx = { feedbackReview: { findUniqueOrThrow: async () => latest, update: async ({data}) => { latest = {...latest,...data}; return latest; } } };
+  const handler = load('src/pages/api/feedback/[id]/index.ts', {
+    '@/lib/prisma': { prisma: { $transaction: async callback => callback(tx) } },
+    '@/lib/feedbackQueue': { feedbackQueueMap: async () => new Map() },
+    '@/lib/feedbackDates': dates, '@/lib/feedbackHolidays': {}, '@/lib/blockedEmails': { isEmailBlocked: async () => false },
+    '@/lib/feedback': { feedbackUser: async () => ({id:1}), getReview: async () => latest, canRead: () => true, owns: () => true, canManageFeedback: () => true, serializeReview: async review => review, reviewInclude: {}, feedbackStatuses: ['RECEIVED'], terminal: () => false, FeedbackError: error, trackLink: token => `https://example.org/feedback/track/${token}`, text: value => value, feedbackFailure: (res,error) => res.status(error.status || 500).json({error:error.message}) },
+    '@/lib/emailTemplates': { sendTemplatedEmail: async (to,id,variables) => deliveries.push({to,id,variables}) },
+  }).default;
+  const res = { code:200, setHeader() {}, status(code) {this.code=code;return this;}, json(body) {this.body=body;return this;} };
+  await handler({method:'PATCH',query:{id:'1'},body:{estimateStart:'2026-11-29',estimateEnd:'2026-12-03',notifyRecipient:true}},res);
+  assert.equal(res.code,200);
+  assert.equal(deliveries.length,1);
+  assert.equal(deliveries[0].id,'feedback_estimate_updated');
+  assert.equal(deliveries[0].variables.estimatedRange,'29th November – 3rd December 2026');
+  assert.equal(deliveries[0].variables.actionUrl,`https://example.org/feedback/track/${'b'.repeat(64)}`);
 });

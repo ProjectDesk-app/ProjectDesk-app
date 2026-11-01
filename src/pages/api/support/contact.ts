@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
 type CaptchaPayload = {
@@ -103,34 +103,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const reference = createReference();
-  const subject = `Contact request: ${contactType} # Ref: ${reference}`;
-  const message = [
-    `Reference: ${reference}`,
-    `Name: ${trimmedName}`,
-    `Email: ${trimmedEmail}`,
-    `Type: ${contactType}`,
-    "",
-    trimmedDescription,
-  ].join("\n");
 
   try {
-    await sendEmail("support@projectdesk.app", subject, message);
-    const confirmationSubject = `We received your request (${reference})`;
-    const confirmationBody = [
-      `Hello ${trimmedName},`,
-      "",
-      "Thanks for contacting ProjectDesk support. We've received your request and will get back to you soon.",
-      "",
-      `Reference: ${reference}`,
-      `Topic: ${contactType}`,
-      "",
-      "Please do not reply to this email - this address is used for notifications only and is not monitored.",
-      "",
-      "Thanks,",
-      "The ProjectDesk Team",
-    ].join("\n");
+    await sendTemplatedEmail('support@projectdesk.app', 'support.contact-admin', { reference, requesterName: trimmedName, requesterEmail: trimmedEmail, topic: contactType, description: trimmedDescription });
 
-    await sendEmail(trimmedEmail, confirmationSubject, confirmationBody);
+    await sendTemplatedEmail(trimmedEmail, 'support.contact-confirmation', { recipientName: trimmedName, reference, topic: contactType });
   } catch (error) {
     console.error("Failed to send contact emails", error);
     return res.status(500).json({ error: "Unable to send message" });

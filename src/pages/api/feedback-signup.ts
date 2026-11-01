@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { generateToken, tokenExpiry } from "@/lib/tokens";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -44,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     const baseUrl = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
     try {
-      await sendEmail(email, "Verify your email for Feedback Hub", `Hello,\n\nPlease verify your email to see your full feedback history:\n${baseUrl}/verify-email?token=${token}&feedback=1\n\nFeedback tracking is free. Your drafts and feedback are exchanged directly with your supervisor.\n\nIf you did not create this account, you can ignore this message.`);
+      await sendTemplatedEmail(email, 'account.feedback-verify', { recipientName: name, actionUrl: baseUrl + '/verify-email?token=' + token + '&feedback=1' });
     } catch {
       return res.status(201).json({ message: "Your account was created, but the verification email could not be sent. Sign in to request another verification email." });
     }

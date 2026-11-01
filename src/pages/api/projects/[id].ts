@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from "@/lib/emailTemplates";
 import { SubscriptionType, UserRole } from "@prisma/client";
 import {
   SUPERVISOR_SPONSOR_LIMIT,
@@ -214,11 +214,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       await Promise.all(
         newlyAssigned.map((entry) =>
-          sendEmail(
-            entry.user.email,
-            `You've been added to "${updatedProject.title}"`,
-            `Hello ${entry.user.name || "there"},\n\nYou have been added to the project "${updatedProject.title}" on ProjectDesk.\nSign in with this email to view the project details.\n\nThanks,\nProjectDesk`
-          )
+          sendTemplatedEmail(entry.user.email, 'project_member_added', {
+            recipientName: entry.user.name || 'there', projectTitle: updatedProject.title, actorName: session.user.name || session.user.email || 'Your supervisor',
+            actionUrl: `${(process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/projects/${updatedProject.id}`,
+          })
         )
       );
 

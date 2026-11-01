@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { generateToken, tokenExpiry } from "@/lib/tokens";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { UserRole } from "@prisma/client";
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
@@ -143,15 +143,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const greetingName = targetUser.name || trimmedName;
 
-  await sendEmail(
-    normalizedEmail,
-    "Activate your ProjectDesk account",
-    `Hello ${greetingName},\n\nWelcome to ProjectDesk! Please activate your account by visiting the link below:\n${verifyLink}\n\nIf you did not sign up, you can safely ignore this message.`
-  );
+  await sendTemplatedEmail(normalizedEmail, 'account.activate', { recipientName: greetingName, actionUrl: verifyLink });
 
   const adminEmail = process.env.ADMIN_EMAIL;
   if (adminEmail) {
-    const subject = `[ProjectDesk] Invited ${role.toLowerCase()} activation`;
     const details = [
       `Name: ${greetingName}`,
       `Email: ${normalizedEmail}`,
@@ -161,11 +156,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (desiredRole && desiredRole !== role) {
       details.push(`Requested role: ${desiredRole}`);
     }
-    const body = `Hello Bradley,\n\nAn invited user has activated their ProjectDesk account.\n\n${details.join(
-      "\n"
-    )}\n\nSign in to the Admin Dashboard if you need to review this account.\n\n— ProjectDesk`;
     try {
-      await sendEmail(adminEmail, subject, body);
+      await sendTemplatedEmail(adminEmail, 'account.activation-admin', { role: role.toLowerCase(), accountDetails: details.join('\n'), actionUrl: baseUrl.replace(/\/$/, '') + '/admin' });
     } catch (error) {
       console.error("Failed to send admin signup notification", error);
     }

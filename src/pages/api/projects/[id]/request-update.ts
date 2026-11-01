@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from "@/lib/emailTemplates";
 import { getProjectLeadLabel } from "@/lib/projectLabels";
 import { getServerSession } from "next-auth/next";
 import { UserRole } from "@prisma/client";
@@ -61,22 +61,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const leadLabel = getProjectLeadLabel(project.category);
-    const subject = `Progress update requested – ${project.title}`;
-    const message = `
-Hello,
-
-Your ${leadLabel} (${project.supervisor?.name}) has requested a progress update 
-for the project "${project.title}". 
-
-Please log in to ProjectDesk to provide an update and flag any issues.
-
-- ProjectDesk Team
-    `;
-
-    // Send to each recipient (mocked)
-    await Promise.all(
-      recipients.map((email) => sendEmail(email, subject, message))
-    );
+    await Promise.all(recipients.map(email => sendTemplatedEmail(email, 'project_update_requested', {
+      recipientName: 'there', actorName: project.supervisor?.name || 'Your supervisor', projectTitle: project.title, leadLabel, supervisorName: project.supervisor?.name || 'Your supervisor',
+      actionUrl: `${(process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/projects/${project.id}`,
+    })));
 
     return res.status(200).json({ message: "Update requests sent" });
   } catch (err) {

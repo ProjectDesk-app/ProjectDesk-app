@@ -405,3 +405,14 @@ model ScheduledJobRun {
   claimedAt DateTime?
   completedAt DateTime?
 }
+
+
+model EmailTemplateOverride {
+  id String @id
+  isCustomized Boolean @default(true)
+  subject String
+  body String
+  buttonLabel String?
+  version Int @default(1)
+  updatedAt DateTime @updatedAt
+}

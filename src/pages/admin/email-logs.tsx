@@ -1,3 +1,4 @@
+import { EmailNavigation } from "@/components/admin/EmailNavigation";
 import { useMemo, useState } from "react";
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
@@ -82,6 +83,7 @@ export default function AdminEmailLogsPage() {
 
   return (
     <Layout title="Email Logs">
+      <div className="mb-6"><EmailNavigation /></div>
       <div className="space-y-6">
         <section className="rounded-lg border border-blue-200 bg-blue-50 p-6 shadow-sm">
           <h1 className="text-2xl font-semibold text-gray-900">Email delivery logs</h1>

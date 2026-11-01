@@ -1,3 +1,4 @@
+import { EmailNavigation } from "@/components/admin/EmailNavigation";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import Layout from "@/components/Layout";
@@ -41,6 +42,7 @@ export default function AdminEmailTest() {
   return (
     <Layout title="Email Delivery Test">
       <div className="space-y-6">
+        <EmailNavigation />
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
           <h1 className="text-2xl font-semibold text-gray-900">Test email delivery</h1>
           <p className="mt-2 text-sm text-amber-800">

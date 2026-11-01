@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { prisma } from "@/lib/prisma";
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
@@ -73,29 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     : "No account";
 
   try {
-    await sendEmail(
-      adminEmail,
-      "ProjectDesk account request",
-      [
-        "A new request for a ProjectDesk account has been submitted.",
-        "",
-        `Name: ${trimmedName}`,
-        `Email: ${normalizedEmail}`,
-        `Requested role: ${requestedRole}`,
-        `Requested: ${requestedAt}`,
-        `Account status: ${accountStatus}`,
-        existingUser ? `Current role: ${existingUser.role}` : null,
-        existingUser ? `Current subscription type: ${existingUser.subscriptionType}` : null,
-        "",
-        "Reason for access:",
-        trimmedContext,
-        "",
-        `App: ${appUrl}`,
-        "Invite this user from the Admin area if access should be granted.",
-      ]
-        .filter((line): line is string => line !== null)
-        .join("\n")
-    );
+    await sendTemplatedEmail(adminEmail, 'account.request-admin', { requesterName: trimmedName, requesterEmail: normalizedEmail, requestedRole, requestedAt, accountStatus, existingAccountDetails: existingUser ? 'Current role: ' + existingUser.role + '\nCurrent subscription type: ' + existingUser.subscriptionType : '', context: trimmedContext, actionUrl: appUrl.replace(/\/$/, '') + '/admin' });
   } catch (error) {
     console.error("Account request email failed", error);
     return res.status(500).json({ error: "Unable to submit your account request right now" });

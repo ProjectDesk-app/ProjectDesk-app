@@ -12,6 +12,7 @@ function load(relative, mocks = {}) {
     if (Object.hasOwn(mocks, name)) return mocks[name];
     if (name.includes('auth/[...nextauth]')) return { authOptions: {} };
     if (name === '@/lib/prisma') return { prisma: {} };
+    if (name === '@/lib/emailTemplates') return { sendTemplatedEmail: async () => {} };
     if (name === '@/lib/mailer') return { sendEmail: async () => {} };
     if (name === 'next-auth/next') return { getServerSession: async () => null };
     if (name.startsWith('.')) return load(path.relative(path.resolve(__dirname, '..'), path.resolve(path.dirname(filename), name + '.ts')), mocks);
@@ -61,6 +62,17 @@ test('mailer escapes user-controlled titles and content in HTML while preserving
     assert.match(sent.get('html'), /&lt;script&gt;title&lt;\/script&gt;/);
     assert.equal(sent.get('html').includes('<img src=x'), false);
     assert.equal(sent.get('text'), 'Hello <img src=x onerror=alert(1)>');
+    const url = 'https://example.org/feedback/track/token?source=email&version=1';
+    const message = `Hello Student,\n\nTrack Progress:\n${url}\n\nYour review history is available after sign-in.`;
+    await mailer.sendEmail('student@example.org', 'Work received', message, { action: { label: 'Track Progress', url } });
+    assert.match(sent.get('html'), /role="presentation"/);
+    assert.match(sent.get('html'), />Track Progress<\/a>/);
+    assert.ok(sent.get('html').includes('href="https://example.org/feedback/track/token?source=email&amp;version=1"'));
+    assert.equal(sent.get('html').includes('Track Progress:<br'), false);
+    assert.equal(sent.get('html').includes('>https://example.org/feedback/track/'), false);
+    assert.ok(sent.get('html').includes('Your review history is available after sign-in.'));
+    assert.equal(sent.get('text'), message);
+
   } finally {
     global.fetch = originals.fetch;
     for (const [key, value] of Object.entries({ NODE_ENV: originals.node, MAILGUN_FORCE_SEND: originals.force, MAILGUN_FROM_ADDRESS: originals.from, MAILGUN_DOMAIN: originals.domain, MAILGUN_API_KEY: originals.key })) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }

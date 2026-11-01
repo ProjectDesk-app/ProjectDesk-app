@@ -250,6 +250,7 @@ export default function AdminDashboard() {
             Manage users, invitations, and account settings across the entire ProjectDesk workspace.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/admin/email-templates" className="rounded-md border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100">Email templates</Link>
             <Link
               href="/admin/email-test"
               className="rounded-md border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100"

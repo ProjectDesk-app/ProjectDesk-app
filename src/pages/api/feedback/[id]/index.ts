@@ -2,9 +2,9 @@ import { feedbackQueueMap } from '@/lib/feedbackQueue';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { calendarDate, ukToday, validateRange, workingDaysBetween } from '@/lib/feedbackDates';
+import { calendarDate, ukToday, validateRange, workingDaysBetween, formatFeedbackDateRange } from '@/lib/feedbackDates';
 import { feedbackUser, feedbackFailure, getReview, canRead, owns, canManageFeedback, serializeReview, reviewInclude, feedbackStatuses, terminal, FeedbackError, sendReviewEmail, trackLink, text } from '@/lib/feedback';
-import { sendEmail } from '@/lib/mailer';
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { randomBytes } from 'crypto';
 import { isEmailBlocked } from '@/lib/blockedEmails';
 import { feedbackHolidays } from '@/lib/feedbackHolidays';
@@ -68,7 +68,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let warning: string | undefined = calendarWarning;
     try {
       if (updated.status === 'COMPLETED') await sendReviewEmail(updated.id, 'completion');
-      if (body.notifyRecipient === true && (updated.estimateStart !== review.estimateStart || updated.estimateEnd !== review.estimateEnd)) await sendEmail(updated.work.recipientEmail, `Feedback estimate updated: ${updated.work.title}`, `Hello ${updated.work.recipientName},\n\nYour estimated feedback return for ${updated.work.title} (V${updated.version}) is now ${updated.estimateStart} to ${updated.estimateEnd}.\n\nTrack Progress:\n${trackLink(updated.trackingToken)}`);
+      if (body.notifyRecipient === true && (updated.estimateStart !== review.estimateStart || updated.estimateEnd !== review.estimateEnd)) await sendTemplatedEmail(updated.work.recipientEmail, 'feedback_estimate_updated', {
+        recipientName: updated.work.recipientName, workTitle: updated.work.title, version: updated.version,
+        supervisorName: updated.work.supervisor.name || 'Your supervisor',
+        estimatedRange: formatFeedbackDateRange(updated.estimateStart, updated.estimateEnd), actionUrl: trackLink(updated.trackingToken),
+      });
     } catch { warning = 'Changes saved, but email delivery failed.'; }
     return res.json({ review: await serializeReview(await getReview(updated.id), user, (await feedbackQueueMap([updated.work.supervisorId])).get(updated.id)), warning });
   } catch (error) { return feedbackFailure(res, error); }

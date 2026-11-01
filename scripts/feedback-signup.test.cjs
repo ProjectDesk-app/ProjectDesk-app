@@ -42,7 +42,7 @@ function setup(options = {}) {
     '@/lib/prisma': { prisma },
     bcryptjs: { hash: async (password) => { calls.push(['hash', password]); return 'hashed-password'; }, compare: async () => true },
     '@/lib/tokens': { generateToken: () => 'verification-token', tokenExpiry: () => new Date('2030-01-01') },
-    '@/lib/mailer': { sendEmail: async (...args) => { calls.push(['mail', ...args]); if (options.mailFails) throw new Error('Provider unavailable'); } },
+    '@/lib/emailTemplates': { sendTemplatedEmail: async (...args) => { calls.push(['mail', ...args]); if (options.mailFails) throw new Error('Provider unavailable'); } },
     '@/lib/blockedEmails': { isEmailBlocked: async () => Boolean(options.blocked), normalizeEmail: (email) => email?.trim().toLowerCase() },
   };
   return { calls, mocks, prisma, handler: loadSource('src/pages/api/feedback-signup.ts', mocks).default };
@@ -86,8 +86,10 @@ test('new recipient gets a feedback-only account and a verification email, witho
   const verification = calls.find(([name]) => name === 'verification')[1].data;
   assert.equal(verification.userId, 42); assert.equal(verification.token, 'verification-token');
   const email = calls.find(([name]) => name === 'mail');
-  assert.equal(email[1], 'student@example.org'); assert.match(email[3], /verify-email\?token=verification-token&feedback=1/);
-  assert.equal(email[3].includes(trackingToken), false);
+  assert.equal(email[1], 'student@example.org'); assert.equal(email[2], 'account.feedback-verify');
+  assert.equal(email[3].recipientName, 'Student');
+  assert.match(email[3].actionUrl, /verify-email\?token=verification-token&feedback=1/);
+  assert.equal(email[3].actionUrl.includes(trackingToken), false);
 });
 test('invited account activation claims only a still-empty password and requires fresh verification', async () => {
   const { handler, calls } = setup({ existing: { id: 7, passwordHash: null } }); const res = response();
@@ -124,7 +126,10 @@ test('primary sign-in rejects unverified feedback recipients before granting a s
   const { auth, calls } = primaryAuth({ unverified: true });
   await assert.rejects(auth.providers[0].authorize({ email: 'student@example.org', password: 'secret' }), /Email not verified/);
   assert.equal(calls.filter(([name]) => name === 'verification').length, 1);
-  assert.match(calls.find(([name]) => name === 'mail')[3], /feedback=1/);
+  const mail = calls.find(([name]) => name === 'mail');
+  assert.equal(mail[2], 'account.verify');
+  assert.equal(mail[3].recipientName, 'Student');
+  assert.match(mail[3].actionUrl, /verify-email\?token=verification-token&feedback=1/);
 });
 test('primary sign-in permits verified unsponsored feedback recipients but rejects unrelated unsponsored users', async () => {
   const { auth } = primaryAuth();

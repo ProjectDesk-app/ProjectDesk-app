@@ -22,15 +22,14 @@ export async function updateProjectStatus(projectId: number, now = new Date()) {
     if (!changed.count) return { result, deliveryIds: [] as number[] };
     let deliveryIds: number[] = [];
     if (['Behind Schedule', 'At Risk', 'Danger'].includes(result.status)) {
-      const origin = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-      const taskNames = result.affectedTasks.slice(0, 8).map(task => `• ${task.title || 'Untitled task'}`).join('\n');
+        const taskNames = result.affectedTasks.slice(0, 8).map(task => `• ${task.title || 'Untitled task'}`).join('\n');
       deliveryIds = await enqueueActivity({
         eventKey: `project-status:${project.id}:${project.updatedAt.toISOString()}:${result.status}`,
         category: 'PROJECT_STATUS', actorId: project.supervisorId, suppressActor: false,
         recipientIds: [project.supervisorId, ...project.students.map(user => user.id), ...project.collaborators.map(user => user.id), ...project.members.map(member => member.userId)],
         projectId: project.id,
         subject: `Project ${result.status.toLowerCase()}: ${project.title}`,
-        message: `The project "${project.title}" changed from ${project.status} to ${result.status}.\n\n${result.reason}\n\n${taskNames}\n\nView the project tasks:\n${origin}/projects/${project.id}/tasks`,
+        message: `The project "${project.title}" changed from ${project.status} to ${result.status}.\n\n${result.reason}\n\n${taskNames}`,
       }, tx);
     }
     return { result, deliveryIds };

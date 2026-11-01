@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from "@/lib/emailTemplates";
 import { authOptions } from "../../auth/[...nextauth]";
 import { UserRole } from "@prisma/client";
 
@@ -159,29 +159,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         );
 
         if (recipients.length > 0) {
-          const subject = `New project update: ${update.title} – ${project.title}`;
           const actorName = session.user.name || "A team member";
-          const messageLines = [
-            `Hello,`,
-            ``,
-            `${actorName} posted a new update in "${project.title}".`,
-            ``,
-            `Update title: ${update.title}`,
-          ];
-
-          if (description) {
-            messageLines.push("", `Details: ${description}`);
-          }
-
-          messageLines.push("", "Sign in to ProjectDesk to see all updates.", "", "- ProjectDesk");
-
-          const message = messageLines.join("\n");
-
-          await Promise.all(
-            recipients.map((recipient) =>
-              sendEmail(recipient.email as string, subject, message)
-            )
-          );
+          await Promise.all(recipients.map(recipient => sendTemplatedEmail(recipient.email as string, 'project_update', {
+            recipientName: 'there', actorName, projectTitle: project.title, updateTitle: update.title, description: description || '',
+            actionUrl: `${(process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/projects/${project.id}`,
+          })));
         }
       }
 

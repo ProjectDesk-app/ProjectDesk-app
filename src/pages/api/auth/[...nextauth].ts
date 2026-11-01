@@ -4,7 +4,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
 import { generateToken, tokenExpiry } from "@/lib/tokens";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { SubscriptionType } from "@prisma/client";
 import { isEmailBlocked, normalizeEmail } from "@/lib/blockedEmails";
 
@@ -50,11 +50,7 @@ export const authOptions = {
           const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
           const verifyLink = `${baseUrl}/verify-email?token=${token}${user.feedbackOnly ? "&feedback=1" : ""}`;
 
-          await sendEmail(
-            user.email,
-            "Verify your ProjectDesk account",
-            `Hello ${user.name || "there"},\n\nPlease confirm your email by visiting the link below:\n${verifyLink}\n\nIf you did not request this, you can ignore the message.`
-          );
+          await sendTemplatedEmail(user.email, 'account.verify', { recipientName: user.name || 'there', actionUrl: verifyLink });
 
           throw new Error("Email not verified");
         }

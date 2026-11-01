@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { sendEmail } from '@/lib/mailer';
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { isEmailBlocked } from '@/lib/blockedEmails';
 import { ukToday, shiftDay } from '@/lib/feedbackDates';
 import { deadlineInstant } from '@/lib/taskSetSchedule';
@@ -66,7 +66,9 @@ export async function dispatchActivity(ids: number[]) {
       if (mode !== 'IMMEDIATE' || !entry.user.emailVerified || !(await recipientCanRead(entry.user, project, entry.taskId)) || await isEmailBlocked(entry.user.email)) {
         await prisma.activityEmail.update({ where: { id }, data: { status: 'SKIPPED', claimedAt: null } }); continue;
       }
-      await sendEmail(entry.user.email, entry.subject, `${entry.message}\n\nOpen in Project Desk:\n${activityLink(entry)}\n\nManage these emails under My Account → Notification preferences.`);
+      await sendTemplatedEmail(entry.user.email, 'activity_notification', {
+        eventSubject: entry.subject, eventMessage: entry.message, actionUrl: activityLink(entry),
+      });
       await prisma.activityEmail.update({ where: { id }, data: { status: 'SENT', sentAt: new Date() } });
     } catch (error) {
       console.error('Activity email delivery failed:', error);
@@ -132,7 +134,9 @@ export async function flushActivityDigest(now = new Date()) {
         const due = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', dateStyle: 'medium', timeStyle: 'short' }).format(t.dueDate!);
         return `${new Date(t.dueDate!).getTime() < now.getTime() ? 'OVERDUE — ' : ''}${t.title}\nProject: ${t.project.title}\nDue: ${due}\n${activityLink({ projectId: t.projectId, taskId: t.id })}`;
       }).join('\n\n')}`);
-      await sendEmail(user.email, 'Your Project Desk daily summary', `Good morning ${user.name || ''},\n\n${sections.join('\n\n')}\n\nManage these emails under My Account → Notification preferences.`);
+      await sendTemplatedEmail(user.email, 'activity_daily_summary', {
+        recipientName: user.name || 'there', summary: sections.join('\n\n'), actionUrl: `${baseUrl()}/dashboard`,
+      });
       await prisma.$transaction(async tx => {
         await tx.activityEmail.updateMany({ where: { id: { in: claimedEvents.map(e => e.id) }, status: 'PENDING', claimedAt: now }, data: { status: 'SENT', sentAt: new Date() } });
         await tx.scheduledJobRun.update({ where: { key }, data: { completedAt: new Date() } });

@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -25,11 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: "User not found" });
   }
 
-  await sendEmail(
-    user.email,
-    "Reset your ProjectDesk password",
-    `Hello ${user.name || "there"},\n\nAn administrator requested a password reset for your ProjectDesk account.\nPlease visit the password reset page to choose a new password.\n\nIf you did not request this change, contact support immediately.\n\nThanks,\nProjectDesk`
-  );
+  await sendTemplatedEmail(user.email, 'account.admin-reset', { recipientName: user.name || 'there', actionUrl: (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '') + '/forgot-password' });
 
   return res.status(200).json({ ok: true });
 }

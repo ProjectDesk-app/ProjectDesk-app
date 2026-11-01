@@ -14,6 +14,9 @@ function load(file, mocks = {}) {
   return module.exports;
 }
 const dates = load('src/lib/feedbackDates.ts');
+const activityDefinitions = load('src/lib/emailTemplates/activity.ts').activityTemplates;
+const templateRenderer = load('src/lib/emailTemplates.ts', { '@/lib/prisma': {}, '@/lib/mailer': { renderEmailHtml: () => '' }, './emailTemplates/catalog': { emailTemplateCatalog: activityDefinitions } });
+
 const input = { eventKey: 'comment:7', category: 'TASK_COMMENT', actorId: 1, recipientIds: [2], projectId: 10, taskId: 20, subject: 'A task comment', message: 'New comment on a task.' };
 function matches(row, where) {
   return Object.entries(where).every(([key, value]) => {
@@ -63,7 +66,13 @@ function harness() {
   const activity = load('src/lib/activityNotifications.ts', {
     __console: { ...console, error() {} },
     '@/lib/prisma': { prisma },
-    '@/lib/mailer': { sendEmail: async (to, subject, message) => { if (state.failEmail) throw new Error('Provider unavailable'); state.emails.push({ to, subject, message }); } },
+    '@/lib/emailTemplates': { sendTemplatedEmail: async (to, id, variables) => {
+      if (state.failEmail) throw new Error('Provider unavailable');
+      const definition = activityDefinitions.find(template => template.id === id);
+      assert.ok(definition, 'Activity call must use a registered template');
+      const rendered = templateRenderer.renderEmailTemplate(definition, definition, variables);
+      state.emails.push({ to, id, variables, subject: rendered.subject, message: rendered.text, options: rendered.options });
+    } },
     '@/lib/blockedEmails': { isEmailBlocked: async email => state.blocked.has(email) },
     '@/lib/feedbackDates': dates,
     '@/lib/taskSetSchedule': { deadlineInstant: (day, time) => new Date(`${day}T${time}:00Z`) },
@@ -115,6 +124,9 @@ test('immediate emails are sent once, link to the task, and re-check current pre
   await activity.dispatchActivity([1]);
   assert.equal(state.emails.length, 1);
   assert.match(state.emails[0].message, /\/tasks\/20/);
+  assert.equal(state.emails[0].id, 'activity_notification');
+  assert.equal(state.emails[0].options.action.label, 'Open in Project Desk');
+  assert.match(state.emails[0].options.action.url, /\/tasks\/20$/);
   assert.equal(state.entries[0].status, 'SENT');
   const ids = await activity.enqueueActivity({ ...input, eventKey: 'comment:8' }, prisma);
   state.prefs.set(2, { taskComments: 'IN_APP' });

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { generateToken, tokenExpiry } from "@/lib/tokens";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -65,11 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
   const verifyLink = `${baseUrl}/verify-email?token=${token}`;
 
-  await sendEmail(
-    normalized,
-    "Confirm your new ProjectDesk email",
-    `Hello ${user.name || "there"},\n\nPlease confirm your new email address by visiting the link below:\n${verifyLink}\n\nIf you did not request this change, please ignore this message.`
-  );
+  await sendTemplatedEmail(normalized, 'account.email-change', { recipientName: user.name || 'there', actionUrl: verifyLink });
 
   return res.status(200).json({ message: "Verification email sent" });
 }

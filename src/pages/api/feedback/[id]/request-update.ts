@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
 import { feedbackUser, feedbackFailure, getReview, owns, canRead, terminal, FeedbackError, serializeReview } from '@/lib/feedback';
-import { addWorkingDays, ukToday, shiftDay } from '@/lib/feedbackDates';
+import { addWorkingDays, ukToday, shiftDay, formatFeedbackDateRange } from '@/lib/feedbackDates';
 import { feedbackHolidays } from '@/lib/feedbackHolidays';
-import { sendEmail } from '@/lib/mailer';
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).end(); }
@@ -15,7 +15,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const claim = await prisma.feedbackReview.updateMany({ where: { id: review.id, lastRequestDate: review.lastRequestDate, status: { notIn: ['COMPLETED', 'CANCELLED'] }, estimateEnd: { lt: today } }, data: { lastRequestDate: today } });
     if (!claim.count) throw new FeedbackError('This review has changed. Please refresh before requesting an update.', 409);
     try {
-      await sendEmail(review.work.supervisor.email, `Feedback update requested: ${review.work.title}`, `${user.name || review.work.recipientName} has requested an update on overdue feedback for ${review.work.title} (V${review.version}).\n\nEstimated return: ${review.estimateStart} to ${review.estimateEnd}.\n\nOpen Feedback Hub: ${(process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '')}/feedback`);
+      await sendTemplatedEmail(review.work.supervisor.email, 'feedback_update_requested', {
+        recipientName: user.name || review.work.recipientName, workTitle: review.work.title, version: review.version,
+        supervisorName: review.work.supervisor.name || 'Your supervisor', estimatedRange: formatFeedbackDateRange(review.estimateStart, review.estimateEnd),
+        actionUrl: `${(process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '')}/feedback`,
+      });
     } catch {
       await prisma.feedbackReview.updateMany({ where: { id: review.id, lastRequestDate: today }, data: { lastRequestDate: review.lastRequestDate } });
       return res.status(502).json({ error: 'The reminder email could not be sent. Please try again.' });

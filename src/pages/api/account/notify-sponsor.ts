@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -44,16 +44,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const sponsorName = user.sponsor.name || "there";
     const studentName = user.name || user.email;
-    const subject = "ProjectDesk sponsorship action needed";
-    const body = `Hello ${sponsorName},
 
-${studentName} (${user.email}) tried to sign in to ProjectDesk, but your sponsor subscription is currently inactive.
-
-Please restart your subscription or add them again once billing is active so they can continue working.
-
-If this wasn't expected, you can ignore this message.`;
-
-    await sendEmail(user.sponsor.email, subject, body);
+    await sendTemplatedEmail(user.sponsor.email, 'sponsorship.action-needed', { recipientName: sponsorName, studentName, studentEmail: user.email, actionUrl: (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '') + '/supervisor' });
     return res.status(200).json({ ok: true });
   } catch (error: any) {
     console.error("Failed to notify sponsor", error);

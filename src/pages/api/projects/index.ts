@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from "@/lib/emailTemplates";
 import { SubscriptionType, UserRole } from "@prisma/client";
 import {
   SUPERVISOR_SPONSOR_LIMIT,
@@ -184,11 +184,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       await Promise.all(
         invitees.map((entry) =>
-          sendEmail(
-            entry.user.email,
-            `You're invited to join "${project.title}" on ProjectDesk`,
-            `Hello ${entry.user.name || "there"},\n\nYou've been added to the project "${project.title}" on ProjectDesk (${appUrl}) by ${session.user.email}.\n\nUse the email address that received this notification when you sign in or finish setting up your invited account.\n\nThanks,\nProjectDesk`
-          )
+          sendTemplatedEmail(entry.user.email, 'project_invitation', {
+            recipientName: entry.user.name || 'there', projectTitle: project.title, actorName: session.user.name || session.user.email || 'Your supervisor',
+            actionUrl: `${appUrl}/projects/${project.id}`,
+          })
         )
       );
 

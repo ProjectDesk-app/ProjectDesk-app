@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { SubscriptionType } from "@prisma/client";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "DELETE") {
@@ -47,11 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   if (target.email) {
-    await sendEmail(
-      target.email,
-      "ProjectDesk sponsorship request update",
-      `Hello ${target.name || "there"},\n\nYour supervisor declined the sponsorship request for ProjectDesk. Please reach out to them if this was unexpected.\n\nThanks,\nProjectDesk`
-    );
+    await sendTemplatedEmail(target.email, 'sponsorship.declined', { recipientName: target.name || 'there' });
   }
 
   return res.status(204).end();

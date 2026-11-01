@@ -7,7 +7,7 @@ import {
   SUPERVISOR_SPONSOR_LIMIT,
   canSponsorAccounts,
 } from "@/lib/subscriptions";
-import { sendEmail } from "@/lib/mailer";
+import { sendTemplatedEmail } from '@/lib/emailTemplates';
 
 const appUrl = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://projectdesk.app").replace(
   /\/$/,
@@ -150,13 +150,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (updated.email) {
-      await sendEmail(
-        updated.email,
-        "ProjectDesk sponsorship approved",
-        `Hello ${updated.name || "there"},\n\n${
-          sessionUser.role === "ADMIN" ? "An administrator" : "Your supervisor"
-        } has approved your sponsorship on ProjectDesk (${appUrl}). You can now sign in and access your projects.\n\nThanks,\nProjectDesk`
-      );
+      await sendTemplatedEmail(updated.email, 'sponsorship.approved', { recipientName: updated.name || 'there', approver: sessionUser.role === 'ADMIN' ? 'An administrator' : 'Your supervisor', actionUrl: appUrl + '/signin' });
     }
 
     return res.status(200).json({ sponsored: updated });

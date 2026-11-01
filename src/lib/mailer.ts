@@ -21,15 +21,25 @@ function escapeHtml(value: string) {
   }[character]!));
 }
 
-function buildHtmlTemplate(subject: string, message: string) {
+export type EmailOptions = { action?: { label: string; url: string } };
+
+export function renderEmailHtml(subject: string, message: string, options: EmailOptions = {}) {
   const fallbackLogoUrl =
     "https://raw.githubusercontent.com/ProjectDesk-app/ProjectDesk-app/refs/heads/main/src/assets/branding/ProjectDesk-Transparent.png";
   const envLogoUrl = (process.env.EMAIL_LOGO_URL || "").trim();
   const logoUrl = envLogoUrl || fallbackLogoUrl;
-  const safeMessage = message
-    .split("\n")
-    .map((line) => escapeHtml(line.trim()))
-    .join("<br />");
+  const formatText = (value: string) => value.split("\n").map(line => escapeHtml(line.trim())).join("<br />");
+  let safeMessage = formatText(message);
+  if (options.action) {
+    const { label, url } = options.action;
+    if (!["https:", "http:"].includes(new URL(url).protocol)) throw new Error("Email buttons require an HTTP or HTTPS URL");
+    const button = `<table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:12px 0;"><tr><td align="center" bgcolor="#2563eb" style="border-radius:8px;padding:12px 24px;"><a href="${escapeHtml(url)}" style="display:inline-block;color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:600;line-height:20px;text-align:center;text-decoration:none;">${escapeHtml(label)}</a></td></tr></table>`;
+    const block = `${label}:\n${url}`;
+    const index = message.indexOf(block);
+    safeMessage = index >= 0
+      ? formatText(message.slice(0, index)) + button + formatText(message.slice(index + block.length))
+      : safeMessage + button;
+  }
 
   return `
 <!DOCTYPE html>
@@ -149,7 +159,7 @@ async function persistEmailLog(input: {
   }
 }
 
-export async function sendEmail(to: string, subject: string, message: string) {
+export async function sendEmail(to: string, subject: string, message: string, options: EmailOptions = {}) {
   const normalizedRecipient = extractEmail(to);
   if (!normalizedRecipient || !EMAIL_REGEX.test(normalizedRecipient)) {
     await persistEmailLog({
@@ -193,7 +203,7 @@ export async function sendEmail(to: string, subject: string, message: string) {
   }
 
   try {
-    const html = buildHtmlTemplate(subject, message);
+    const html = renderEmailHtml(subject, message, options);
 
     const body = new URLSearchParams({
       from: fromRaw,
