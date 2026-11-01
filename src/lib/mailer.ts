@@ -96,7 +96,7 @@ export function renderEmailHtml(subject: string, message: string, options: Email
           ${safeMessage}
         </div>
         <div class="footer">
-          Sent by ProjectDesk • Please not reply, this account is used for automated notifications only.<br>Manage your email preferences in your ProjectDesk account settings.
+          Sent by ProjectDesk • Please do not reply, this account is used for automated notifications only<br>Manage your email preferences in your ProjectDesk account settings
         </div>
       </div>
     </div>
