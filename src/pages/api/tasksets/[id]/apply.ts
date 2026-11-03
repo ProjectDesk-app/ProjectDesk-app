@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       tasks = templates.map(t => {
         const { startDate, dueDate, duration } = resolveTemplate(t, base);
         return { title: t.title, description: t.description, startDate, dueDate, duration, projectId,
-          kind: t.kind === "MILESTONE" ? "MILESTONE" : "TASK" };
+          infoOnly: t.kind === "MILESTONE" && t.infoOnly, kind: t.kind === "MILESTONE" ? "MILESTONE" : "TASK" };
       });
     } catch (error) { return res.status(400).json({ error: (error as Error).message }); }
     const existing = await prisma.task.findMany({ where: { projectId, title: { in: tasks.map(t => t.title) } }, select: { title: true } });

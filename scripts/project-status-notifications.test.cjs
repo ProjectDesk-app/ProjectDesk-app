@@ -108,3 +108,12 @@ test('partial scheduled status failure releases its claim for safe retry', async
   try { await withClock('2026-10-30T01:00:00Z', async () => { const fixture = cronFixture({ statusFailure: true }), res = response(); await fixture.handler(request(), res); assert.equal(res.code, 503); assert.ok(fixture.writes.some(write => write.data.claimedAt === null)); }); }
   finally { console.error = originalError; if (old === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = old; }
 });
+
+test('info-only milestones cannot make a project overdue or at risk', () => {
+  const info = { ...task(1), infoOnly: true };
+  const result = calculator.calculateProjectStatus({ tasks: [info, task(2, 'TODO', '2026-12-01')], endDate: '2026-12-31' }, now);
+  assert.equal(result.status, 'On Track');
+  assert.equal(result.overdueTasks, 0);
+  assert.deepEqual(result.affectedTasks, []);
+  assert.equal(calculator.calculateProjectStatus({ tasks: [info] }, now).status, 'Not Started');
+});

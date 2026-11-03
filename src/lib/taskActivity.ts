@@ -7,6 +7,7 @@ function dateLabel(value: any) {
 }
 /** All task edit endpoints share recipients, transition checks, and event keys. */
 export async function emitTaskChanges(before: any | null, after: any, actor: any) {
+  if (after.infoOnly) return;
   const common = { actorId: Number(actor.id), projectId: after.projectId, taskId: after.id };
   const stamp = new Date(after.updatedAt || after.createdAt || new Date()).toISOString();
   const prefix = `task:${after.id}:${stamp}`;

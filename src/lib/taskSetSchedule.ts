@@ -9,6 +9,7 @@ export type ScheduleTemplate = {
   duration?: number | null;
   dueTime?: string | null;
   kind?: ScheduleKind | string;
+  infoOnly?: boolean;
   order?: number | null;
 };
 
@@ -67,6 +68,7 @@ export function validateTemplates(value: unknown): Required<ScheduleTemplate>[] 
     titles.add(title);
     const kind = item.kind ?? "TASK";
     if (!["TASK", "MILESTONE", "BREAK"].includes(kind)) throw new Error(`Invalid item type for “${title}”.`);
+    if (item.infoOnly !== undefined && typeof item.infoOnly !== "boolean") throw new Error("Info only must be a checkbox value.");
     const startOffset = optionalInteger(item.startOffset, "Start offset");
     const dueOffset = optionalInteger(item.dueOffset, "Due offset");
     let duration = optionalInteger(item.duration, "Duration", 0);
@@ -91,7 +93,7 @@ export function validateTemplates(value: unknown): Required<ScheduleTemplate>[] 
     }
     if (item.description != null && typeof item.description !== "string") throw new Error("Descriptions must be text.");
     return { title, description: item.description || null, startOffset: kind === "MILESTONE" ? dueOffset : startOffset,
-      dueOffset, duration, dueTime, kind, order };
+      dueOffset, duration, dueTime, kind, infoOnly: kind === "MILESTONE" && item.infoOnly === true, order };
   });
 }
 

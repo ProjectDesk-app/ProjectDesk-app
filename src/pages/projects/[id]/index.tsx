@@ -507,7 +507,7 @@ export default function ProjectOverview() {
   const projectEndDate = project.endDate ? new Date(project.endDate) : null;
 
   const overdueTasks = projectTasks.filter((task: any) => {
-    if (!task.dueDate) return false;
+    if (task.infoOnly || !task.dueDate) return false;
     const dueTime = new Date(task.dueDate).getTime();
     return (
       dueTime < now.getTime() - oneDayMs &&
@@ -518,7 +518,7 @@ export default function ProjectOverview() {
   });
 
   const behindScheduleTasks = projectTasks.filter((task: any) => {
-    if (!task.dueDate) return false;
+    if (task.infoOnly || !task.dueDate) return false;
     const dueTime = new Date(task.dueDate).getTime();
     const status = normalizeTaskStatus(task.status);
     return (
@@ -539,7 +539,7 @@ export default function ProjectOverview() {
   });
 
   const tasksBeyondProject = projectTasks.filter((task: any) => {
-    if (!task.dueDate || !projectEndDate) return false;
+    if (task.infoOnly || !task.dueDate || !projectEndDate) return false;
     return new Date(task.dueDate).getTime() > projectEndDate.getTime();
   });
 

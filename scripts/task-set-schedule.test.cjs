@@ -196,3 +196,13 @@ test("editing project dates preserves inclusive work duration and milestone dura
     assert.equal(saved.duration, expected);
   }
 });
+
+test('info only is preserved for milestones and cleared for other schedule items', () => {
+  const items = schedule.validateTemplates([
+    { title: 'Optional deadline', kind: 'MILESTONE', dueOffset: 0, infoOnly: true },
+    { title: 'Required deadline', kind: 'MILESTONE', dueOffset: 1 },
+    { title: 'Work', kind: 'TASK', infoOnly: true },
+  ]);
+  assert.deepEqual(items.map(item => item.infoOnly), [true, false, false]);
+  assert.throws(() => schedule.validateTemplates([{ title: 'Invalid', kind: 'MILESTONE', dueOffset: 0, infoOnly: 'true' }]));
+});

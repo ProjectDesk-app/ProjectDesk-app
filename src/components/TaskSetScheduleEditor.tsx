@@ -81,7 +81,7 @@ export default function TaskSetScheduleEditor({ templates, startDate, onChange, 
               <input aria-label={`Item ${index + 1} title`} value={item.title} onChange={e => update(index, { title: e.target.value })} maxLength={200} required className="mt-1 w-full rounded border px-3 py-2 font-normal" />
             </label>
             <label className="text-sm font-medium">Type
-              <select value={item.kind || "TASK"} onChange={e => update(index, { kind: e.target.value as ScheduleKind,
+              <select value={item.kind || "TASK"} onChange={e => update(index, { kind: e.target.value as ScheduleKind, infoOnly: e.target.value === "MILESTONE" && !!item.infoOnly,
                 ...(e.target.value !== "MILESTONE" && item.duration === 0 ? { duration: 1 } : {}) })}
                 className="mt-1 block rounded border px-3 py-2 font-normal">
                 <option value="TASK">Work period</option><option value="MILESTONE">Milestone</option><option value="BREAK">Break</option>
@@ -93,6 +93,7 @@ export default function TaskSetScheduleEditor({ templates, startDate, onChange, 
               <button type="button" onClick={() => onChange(templates.filter((_, i) => i !== index))} className="rounded border px-3 py-2 text-red-700">Remove</button>
             </div>
           </div>
+          {item.kind === "MILESTONE" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!item.infoOnly} onChange={e => update(index, { infoOnly: e.target.checked })} />Info only <span className="text-gray-500">— no emails or alerts</span></label>}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-sm font-medium">Start date
               <input type="date" value={day(item.startOffset)} onChange={e => updateDate(index, "startOffset", e.target.value)} disabled={!startDate || item.kind === "MILESTONE"} className="mt-1 block w-full min-w-0 rounded border px-2 py-2 font-normal disabled:bg-gray-50" />

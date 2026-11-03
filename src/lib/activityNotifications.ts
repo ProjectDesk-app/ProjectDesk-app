@@ -25,6 +25,7 @@ function activityLink(input: {projectId: number;taskId?: number | null}) { retur
 
 /** Call within the source mutation transaction to persist the alert and its delivery together. */
 export async function enqueueActivity(input: ActivityInput, client: any = prisma): Promise<number[]> {
+  if (input.taskId && (await client.task.findUnique({ where: { id: input.taskId }, select: { infoOnly: true } }))?.infoOnly) return [];
   const recipients = Array.from(new Set(input.recipientIds)).filter(id => Number.isSafeInteger(id) && id > 0 && (input.suppressActor === false || id !== input.actorId));
   const ids: number[] = [];
   for (const userId of recipients) {
@@ -46,6 +47,7 @@ export async function enqueueActivity(input: ActivityInput, client: any = prisma
 }
 async function recipientCanRead(user: any, project: any, task?: any) {
   if (user.feedbackOnly || !project || project.archived || project.isCompleted) return false;
+  if (task && (typeof task === "object" ? task.infoOnly : (await prisma.task.findUnique({ where: { id: task }, select: { infoOnly: true } }))?.infoOnly)) return false;
   if (project.supervisorId === user.id || project.students.some((u: any) => u.id === user.id) || project.collaborators.some((u: any) => u.id === user.id) || project.members.some((m: any) => m.userId === user.id)) return true;
   if (task && typeof task === 'object') return task.assigneeId === user.id || task.assignedUsers.some((u: any) => u.id === user.id);
   if (!task) return false;
@@ -90,7 +92,7 @@ export async function flushActivityDigest(now = new Date()) {
   const day = ukToday(now);
   const cutoff = deadlineInstant(shiftDay(day, 3), '23:59');
   const dueTasks = await prisma.task.findMany({ where: {
-    dueDate: { lte: cutoff }, status: { notIn: ['COMPLETE', 'DONE'] },
+    infoOnly: false, dueDate: { lte: cutoff }, status: { notIn: ['COMPLETE', 'DONE'] },
     project: { archived: false, isCompleted: false },
   }, include: { assignedUsers: { select: { id: true } }, project: { include: projectAccess } }, orderBy: { dueDate: 'asc' } });
   const pending = await prisma.activityEmail.findMany({ where: { status: 'PENDING', claimedAt: null }, orderBy: { id: 'asc' } });

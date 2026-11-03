@@ -190,6 +190,7 @@ export default function TaskDetail() {
 
   function openEdit() {
     setEditForm({
+      infoOnly: !!task.infoOnly,
       title: task.title,
       description: task.description,
       dueDate: task.dueDate ? task.dueDate.slice(0, 10) : "",
@@ -352,6 +353,7 @@ export default function TaskDetail() {
               )}
             </div>
           </div>
+          {task.infoOnly && <p className="mb-2 text-sm text-gray-500">Info only — emails and alerts are off.</p>}
           <p className="text-gray-700">{task?.description || "No description available."}</p>
         </div>
 
@@ -485,6 +487,7 @@ export default function TaskDetail() {
             <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
               <h2 className="text-xl font-semibold mb-4">Edit Task</h2>
               <form onSubmit={handleEditSubmit} className="space-y-4">
+                {task.kind === "MILESTONE" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!editForm.infoOnly} onChange={e => setEditForm({ ...editForm, infoOnly: e.target.checked })} />Info only — no emails or alerts</label>}
                 <div>
                   <label className="block text-sm font-medium mb-1">
                     Title

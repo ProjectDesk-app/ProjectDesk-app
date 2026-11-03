@@ -44,6 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             duration: t.duration,
             dueTime: t.dueTime,
             kind: t.kind,
+            infoOnly: t.infoOnly,
             order: t.order,
           })),
         },

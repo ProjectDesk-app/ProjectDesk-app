@@ -52,9 +52,9 @@ function harness() {
     },
     user: { findUnique: async ({ where }) => state.users.has(where.id) ? { ...state.users.get(where.id), notificationPreferences: state.prefs.get(where.id) || null } : null },
     project: { findUnique: async ({ where }) => state.projects.get(where.id) || null },
-    task: { findFirst: async ({ where }) => state.tasks.find(task => task.id === where.id && task.projectId === where.projectId && (task.assigneeId === where.OR[0].assigneeId || task.assignedUsers.some(user => user.id === where.OR[1].assignedUsers.some.id))) || null, findMany: async ({ where }) => {
+    task: { findUnique: async ({ where }) => state.tasks.find(task => task.id === where.id) || null, findFirst: async ({ where }) => state.tasks.find(task => task.id === where.id && task.projectId === where.projectId && (task.assigneeId === where.OR[0].assigneeId || task.assignedUsers.some(user => user.id === where.OR[1].assignedUsers.some.id))) || null, findMany: async ({ where }) => {
       state.taskQuery = where;
-      return state.tasks.filter(task => task.dueDate <= where.dueDate.lte && !where.status.notIn.includes(task.status) && !task.project.archived && !task.project.isCompleted);
+      return state.tasks.filter(task => !task.infoOnly && task.dueDate <= where.dueDate.lte && !where.status.notIn.includes(task.status) && !task.project.archived && !task.project.isCompleted);
     } },
     scheduledJobRun: {
       upsert: async ({ where, create }) => { if (!state.jobs.has(where.key)) state.jobs.set(where.key, { claimedAt: null, completedAt: null, ...create }); return state.jobs.get(where.key); },
@@ -237,4 +237,23 @@ test('notification preference API returns defaults and validates before saving o
   assert.equal(h.state.prefs.has(1), false);
   assert.equal(h.state.prefs.has(2), true);
   assert.equal(res.headers['Cache-Control'], 'private, no-store');
+});
+
+
+test('info-only milestones suppress new alerts and queued immediate and digest emails', async () => {
+  const { state, activity, project } = harness();
+  const milestone = { id: 20, projectId: 10, project, title: 'Optional submission', kind: 'MILESTONE', infoOnly: false, status: 'TODO', dueDate: new Date('2026-10-01'), assignedUsers: [], assigneeId: null };
+  state.tasks.push(milestone);
+  const ids = await activity.enqueueActivity(input);
+  milestone.infoOnly = true;
+  await activity.dispatchActivity(ids);
+  assert.equal(state.entries[0].status, 'SKIPPED');
+  assert.equal(state.emails.length, 0);
+  assert.deepEqual(await activity.enqueueActivity({ ...input, eventKey: 'new-comment' }), []);
+  assert.equal(state.notifications.length, 1);
+  state.entries[0].status = 'PENDING';
+  await activity.flushActivityDigest(new Date('2026-11-03T09:00:00Z'));
+  assert.equal(state.entries[0].status, 'SKIPPED');
+  assert.equal(state.emails.length, 0);
+  assert.equal(state.taskQuery.infoOnly, false);
 });

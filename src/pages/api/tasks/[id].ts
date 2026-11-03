@@ -53,6 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await updateProjectStatus(before.projectId);
       return res.json({ task: updated, message: body.unflag ? 'Task unflagged' : users ? 'Assigned users updated' : 'Task flagged' });
     }
+    if (body.infoOnly !== undefined && (typeof body.infoOnly !== "boolean" || (body.infoOnly && before.kind !== "MILESTONE"))) throw new TaskAccessError("Info only is available for milestones only", 400);
     const parsedStart = optionalDate(body.startDate), parsedDue = optionalDate(body.dueDate);
     const normalizedStatus = typeof body.status === 'string' ? body.status.toUpperCase().replace(/\s+/g, '_') : undefined;
     if (normalizedStatus && !Object.values(TaskStatus).includes(normalizedStatus as TaskStatus)) throw new TaskAccessError('Invalid task status', 400);
@@ -61,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (parsedStart instanceof Date && parsedDue instanceof Date) duration = before.kind === 'MILESTONE' ? 0 : Math.max(0, calendarDuration(parsedStart, parsedDue));
     const users = assignedUsers(body.assignedUserIds);
     if (users) validateAssignees(before.project, users.set.map(user => user.id));
-    const updated = await prisma.task.update({ where: { id: before.id }, data: { title: body.title, description: body.description, dueDate: parsedDue, startDate: parsedStart, duration, status: normalizedStatus as TaskStatus, ...(users ? { assignedUsers: users } : {}) }, include: taskContext });
+    const updated = await prisma.task.update({ where: { id: before.id }, data: { infoOnly: body.infoOnly, title: body.title, description: body.description, dueDate: parsedDue, startDate: parsedStart, duration, status: normalizedStatus as TaskStatus, ...(users ? { assignedUsers: users } : {}) }, include: taskContext });
     await emitTaskChanges(before, updated, session.user);
     await updateProjectStatus(before.projectId);
     return res.json(updated);

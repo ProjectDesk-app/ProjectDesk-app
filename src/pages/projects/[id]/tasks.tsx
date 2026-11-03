@@ -251,6 +251,7 @@ export default function ProjectTasks() {
                       >
                         <div className="flex-1 cursor-pointer" onClick={() => router.push(`/tasks/${task.id}`)}>
                           <p className="font-medium text-gray-900">{task.title}</p>
+                          {task.infoOnly && <span className="text-xs text-gray-500">Info only</span>}
                           <p className="text-sm text-gray-500">{task.description}</p>
                           <p className="text-xs text-gray-500 mt-2">
                             <span className="font-semibold text-gray-600">Assignees:</span>{" "}
@@ -258,7 +259,7 @@ export default function ProjectTasks() {
                           </p>
                           <p
                             className={`text-xs ${
-                              task.dueDate &&
+                              !task.infoOnly && task.dueDate &&
                               new Date(task.dueDate) < new Date() &&
                               normalizeStatus(task.status) !== "done"
                                 ? "text-red-600 font-semibold"
@@ -267,7 +268,7 @@ export default function ProjectTasks() {
                           >
                             Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "N/A"}
                           </p>
-                          {task.dueDate &&
+                          {!task.infoOnly && task.dueDate &&
                             new Date(task.dueDate) < new Date() &&
                             normalizeStatus(task.status) !== "done" && (
                               <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded mt-1">
@@ -614,7 +615,7 @@ const KanbanCardContent = forwardRef<HTMLDivElement, KanbanCardContentProps>(
     ref
   ) => {
     const overdue =
-      task.dueDate && new Date(task.dueDate) < new Date() && (task.status || "").toUpperCase() !== "DONE";
+      !task.infoOnly && task.dueDate && new Date(task.dueDate) < new Date() && (task.status || "").toUpperCase() !== "DONE";
 
     return (
       <div
@@ -634,6 +635,7 @@ const KanbanCardContent = forwardRef<HTMLDivElement, KanbanCardContentProps>(
             <StatusPill status={task.status} />
           </div>
         </div>
+        {task.infoOnly && <span className="text-xs text-gray-500">Info only</span>}
         {task.description && <p className="mt-2 text-sm text-gray-600">{task.description}</p>}
         <p className="mt-2 text-xs text-gray-500">
           Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "N/A"}

@@ -102,6 +102,7 @@ model Task {
   assigneeId       Int?
   duration         Int?
   kind             String         @default("TASK")
+  infoOnly         Boolean        @default(false)
   startDate        DateTime?
   status           TaskStatus     @default(TODO)
   flaggedByUserId  Int?
@@ -222,6 +223,7 @@ model TaskTemplate {
   startOffset Int?
   dueTime     String?
   kind        String   @default("TASK")
+  infoOnly    Boolean  @default(false)
   taskSet     TaskSet  @relation("TaskSetTemplates", fields: [taskSetId], references: [id], onDelete: Cascade)
 }
 

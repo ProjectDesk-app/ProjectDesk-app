@@ -92,3 +92,11 @@ test('flag toggle claims reject races without sending duplicate notifications', 
   const won = response(); await handler({ method: 'POST', query: { id: '9' } }, won);
   assert.equal(won.code, 200); assert.equal(events, 1);
 });
+
+
+test('info-only milestones do not emit assignment, deadline or flag alerts', async () => {
+  const events = [];
+  const { emitTaskChanges } = load('src/lib/taskActivity.ts', { '@/lib/activityNotifications': { emitActivity: async event => events.push(event) }, '@/lib/prisma': { prisma: {} } });
+  await emitTaskChanges(task, { ...task, infoOnly: true, flagged: true, dueDate: new Date('2026-12-01'), assignedUsers: [{ id: 3 }] }, actor);
+  assert.deepEqual(events, []);
+});

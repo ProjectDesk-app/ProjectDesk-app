@@ -25,3 +25,9 @@ A database job record deduplicates each job and UK date. Status checks claim a 3
 ## Verification
 
 Run `node --test scripts/project-status-notifications.test.cjs` for completion handling, grace periods and precedence, transition alerts, recovery silence, ownership recipients, scheduler authentication, working days, GMT/BST, batch deduplication and retry behaviour. Before enabling on production, test with a staging project and mail account. Notification preferences are available under **My Account → Notification preferences**.
+
+## Info-only milestones
+
+Milestones have an **Info only** checkbox in the task-set schedule editor and the task edit dialog. It defaults to off. When enabled, the item stays visible but produces no task emails or in-app alerts (including comments, assignments, deadline changes and flags). It is excluded from deadline summaries, overdue indicators and project status calculations. Pending task emails recheck the setting before delivery. Previously delivered notifications remain in history. Duplicating or applying a task set preserves the setting; changing an item to a work period or break clears it.
+
+Apply migration `20261103120000_milestone_info_only` before deploying this change, then regenerate the Prisma client. Existing milestones retain their current notification behaviour until explicitly marked info only.
