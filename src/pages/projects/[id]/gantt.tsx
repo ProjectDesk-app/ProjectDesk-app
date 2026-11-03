@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import Link from "next/link";
 import useSWR from "swr";
 import Layout from "@/components/Layout";
 import dynamic from "next/dynamic";
@@ -457,7 +458,13 @@ export default function GanttPage() {
                 ) : (
                   <span className="w-4" />
                 )}
-                <span className="truncate">{task.name}</span>
+                <Link
+                  href={`/tasks/${task.id}`}
+                  className="min-w-0 truncate text-blue-600 hover:underline focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 print:text-inherit"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {task.name}
+                </Link>
               </div>
               <div className="truncate border-r border-gray-200 px-2">
                 {formatTaskDate(task.start)}
