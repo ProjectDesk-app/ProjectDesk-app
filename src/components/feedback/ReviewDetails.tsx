@@ -6,6 +6,12 @@ export default function ReviewDetails({review,canManage,onClose,onSaved}: {revie
   const [recipientName,setRecipientName]=useState(review.recipientName),[recipientEmail,setRecipientEmail]=useState(review.recipientEmail);
   const [queuePosition,setQueuePosition]=useState(review.queuePosition ?? 1);
   const [saving,setSaving]=useState(false),[error,setError]=useState('');
+  async function deleteReview(){
+    if(!window.confirm(`Permanently delete “${review.title}” (V${review.version}) for ${review.recipientName}? This removes this version and its history from the database and disables its tracking link. Other versions are kept. No email or notification will be sent. This cannot be undone.`))return;
+    setSaving(true);setError('');
+    try{await api(`/api/feedback/${review.id}`,'DELETE');onSaved();}
+    catch(e){setError((e as Error).message);}finally{setSaving(false);}
+  }
   async function moveInQueue(e:FormEvent){
     e.preventDefault();
     if(!window.confirm(`Move this review to position ${queuePosition} in your outstanding queue? Other reviews will shift to make room. Estimated return dates stay the same and no email is sent.`))return;
@@ -32,6 +38,7 @@ export default function ReviewDetails({review,canManage,onClose,onSaved}: {revie
     {review.isOwner && review.trackingToken && <a className="inline-block text-sm font-medium text-blue-700 underline" href={`/feedback/track/${review.trackingToken}`} target="_blank" rel="noopener noreferrer">Open public tracking page</a>}
     {review.isOwner && canManage && <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-medium text-gray-700">Correct recipient details</summary><form className="mt-3 space-y-3" onSubmit={saveRecipient}><label className="block space-y-1">Recipient name<input required maxLength={200} className={inputClass} value={recipientName} onChange={e=>setRecipientName(e.target.value)}/></label><label className="block space-y-1">Recipient email<input required type="email" className={inputClass} value={recipientEmail} onChange={e=>setRecipientEmail(e.target.value)}/></label><p className="text-xs text-gray-500">Applies to every version of this work. Changing the email replaces all tracking links. Send a fresh receipt from the review history afterwards.</p><button disabled={saving||(recipientName===review.recipientName&&recipientEmail===review.recipientEmail)} className={secondaryClass}>Save recipient</button></form></details>}
     <section className="border-t pt-4"><h3 className="font-semibold">Progress history</h3><ol className="mt-3 max-h-72 space-y-3 overflow-y-auto">{review.history?.length ? [...review.history].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(event=><li key={event.id} className="border-l-2 border-blue-100 pl-3"><p className="text-xs text-gray-500">{formatDate(event.createdAt)} · {new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'}).format(new Date(event.createdAt))}</p><p className="mt-1 text-sm">{event.message}</p></li>) : <li className="text-sm text-gray-500">No progress events yet.</li>}</ol></section>
+    {review.isOwner && canManage && <section className="space-y-2 border-t pt-4"><h3 className="font-semibold text-red-700">Delete this review</h3><p className="text-sm text-gray-600">Permanently removes this version and its history. Other versions are kept. No email or notification is sent.</p><button type="button" disabled={saving} className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50" onClick={deleteReview}>Delete permanently</button></section>}
     {error && <p role="alert" className="text-red-700">{error}</p>}<div className="flex justify-end"><button className={secondaryClass} onClick={onClose}>Close</button></div>
   </ModalShell>;
 }

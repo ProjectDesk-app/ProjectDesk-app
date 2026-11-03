@@ -10,12 +10,21 @@ import { isEmailBlocked } from '@/lib/blockedEmails';
 import { feedbackHolidays } from '@/lib/feedbackHolidays';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const user = await feedbackUser(req, res, req.method === 'PATCH');
+    const user = await feedbackUser(req, res, req.method === 'PATCH' || req.method === 'DELETE');
     const review = await getReview(req.query.id);
     if (!canRead(review, user)) throw new FeedbackError('Review not found.', 404);
     if (req.method === 'GET') return res.json({ review: await serializeReview(review, user, (await feedbackQueueMap([review.work.supervisorId])).get(review.id)) });
-    if (req.method !== 'PATCH') { res.setHeader('Allow', 'GET, PATCH'); return res.status(405).end(); }
+    if (req.method !== 'PATCH' && req.method !== 'DELETE') { res.setHeader('Allow', 'GET, PATCH, DELETE'); return res.status(405).end(); }
     if (!owns(review, user) || !canManageFeedback(user)) throw new FeedbackError('Access denied.', 403);
+    if (req.method === 'DELETE') {
+      await prisma.$transaction(async tx => {
+        await tx.feedbackEvent.deleteMany({ where: { reviewId: review.id } });
+        await tx.feedbackReview.delete({ where: { id: review.id } });
+        // Keep other versions and their version numbering intact.
+        await tx.feedbackWork.deleteMany({ where: { id: review.workId, reviews: { none: {} } } });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return res.status(204).end();
+    }
     const body = req.body || {};
     if (body.retryEmail) {
       if (!['receipt', 'completion'].includes(body.retryEmail) || (body.retryEmail === 'completion' && !review.completedAt)) throw new FeedbackError('Invalid email retry.');

@@ -46,3 +46,47 @@ test('review list batches queue aggregates across matching supervisors and suppl
   assert.equal(res.body.reviews[2].queuePosition, null);
   assert.equal(res.body.canManage, false);
 });
+
+test('permanent deletion removes history and review atomically, cleans up empty work, and sends no mail', async () => {
+  const calls = [];
+  const handler = deleteHandler({ calls });
+  const res = response();
+  await handler({ method: 'DELETE', query: { id: '8' } }, res);
+  assert.equal(res.code, 204);
+  assert.deepEqual(calls, [
+    ['events', { where: { reviewId: 8 } }],
+    ['review', { where: { id: 8 } }],
+    ['work', { where: { id: 12, reviews: { none: {} } } }],
+  ]);
+});
+for (const access of ['recipient', 'unrelated', 'expired']) {
+  test(`permanent deletion rejects ${access} access before any database mutation`, async () => {
+    const calls = [];
+    const res = response();
+    await deleteHandler({ calls, access })({ method: 'DELETE', query: { id: '8' } }, res);
+    assert.equal(res.code, access === 'unrelated' ? 404 : 403);
+    assert.deepEqual(calls, []);
+  });
+}
+function deleteHandler({ calls, access = 'owner' }) {
+  class FeedbackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
+  return load('src/pages/api/feedback/[id]/index.ts', {
+    '@/lib/prisma': { prisma: { $transaction: async (fn, options) => {
+      assert.equal(options.isolationLevel, 'Serializable');
+      return fn({
+        feedbackEvent: { deleteMany: async args => calls.push(['events', args]) },
+        feedbackReview: { delete: async args => calls.push(['review', args]) },
+        feedbackWork: { deleteMany: async args => calls.push(['work', args]) },
+      });
+    } } },
+    '@/lib/feedbackQueue': {}, '@/lib/feedbackDates': {}, '@/lib/blockedEmails': {}, '@/lib/feedbackHolidays': {},
+    '@/lib/emailTemplates': { sendTemplatedEmail: () => assert.fail('must not send email') },
+    '@/lib/feedback': {
+      feedbackUser: async (_req, _res, manage) => { assert.equal(manage, true); if (access === 'expired') throw new FeedbackError('Access denied.', 403); return {}; },
+      getReview: async () => ({ ...record, workId: 12 }),
+      canRead: () => access !== 'unrelated', owns: () => access === 'owner', canManageFeedback: () => true,
+      FeedbackError, feedbackFailure: (res, error) => res.status(error.status || 500).json({ error: error.message }),
+      sendReviewEmail: () => assert.fail('must not send email'),
+    },
+  }).default;
+}
