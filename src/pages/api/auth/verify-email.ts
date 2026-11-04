@@ -3,7 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { isEmailBlocked } from "@/lib/blockedEmails";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const token = (req.method === "POST" ? req.body?.token : req.query.token) as string | undefined;
+  res.setHeader("Cache-Control", "no-store");
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+  const token = req.body?.token as string | undefined;
 
   if (!token || typeof token !== "string") {
     return res.status(400).json({ error: "Token is required" });
@@ -14,12 +19,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   if (!verification) {
-    return res.status(404).json({ error: "Token not found" });
+    return res.status(404).json({ error: "This verification link has already been used or replaced. Try signing in. If your email still needs verification, signing in will send a new link." });
   }
 
   if (verification.expiresAt < new Date()) {
     await prisma.emailVerification.delete({ where: { token } });
-    return res.status(410).json({ error: "Token has expired" });
+    return res.status(410).json({ error: "This verification link has expired. Please sign in to request a new verification email." });
   }
 
   const user = await prisma.user.findUnique({ where: { id: verification.userId } });
