@@ -330,6 +330,7 @@ model FeedbackReview {
   completedAt DateTime?
   turnaroundWorkingDays Int?
   queuePosition Int?
+  paused Boolean @default(false)
   cancellationReason String?
   trackingToken String @unique
   lastRequestDate String?

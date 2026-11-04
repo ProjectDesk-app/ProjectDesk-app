@@ -4,8 +4,14 @@ import { api, buttonClass, formatDate, inputClass, Review, secondaryClass, Statu
 export default function ReviewDetails({review,canManage,onClose,onSaved}: {review:Review;canManage:boolean;onClose:()=>void;onSaved:(warning?:string)=>void}) {
   const [start,setStart]=useState(review.estimateStart),[end,setEnd]=useState(review.estimateEnd),[notify,setNotify]=useState(false);
   const [recipientName,setRecipientName]=useState(review.recipientName),[recipientEmail,setRecipientEmail]=useState(review.recipientEmail);
+  const [pauseDays,setPauseDays]=useState('');
   const [queuePosition,setQueuePosition]=useState(review.queuePosition ?? 1);
   const [saving,setSaving]=useState(false),[error,setError]=useState('');
+  async function togglePause(e:FormEvent){
+    e.preventDefault();setSaving(true);setError('');
+    try{const data=await api(`/api/feedback/${review.id}`,'PATCH',review.paused ? {paused:false,estimateStart:start,estimateEnd:end,estimateConfirmed:true} : {paused:true,...(pauseDays!==''?{pauseDays:Number(pauseDays)}:{})});onSaved(data.warning);}
+    catch(e){setError((e as Error).message);}finally{setSaving(false);}
+  }
   async function deleteReview(){
     if(!window.confirm(`Permanently delete “${review.title}” (V${review.version}) for ${review.recipientName}? This removes this version and its history from the database and disables its tracking link. Other versions are kept. No email or notification will be sent. This cannot be undone.`))return;
     setSaving(true);setError('');
@@ -23,7 +29,7 @@ export default function ReviewDetails({review,canManage,onClose,onSaved}: {revie
   async function retryEmail(kind: 'receipt'|'completion'){setSaving(true);setError('');try{const data=await api(`/api/feedback/${review.id}`,'PATCH',{retryEmail:kind});onSaved(data.warning);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}
   async function save(e:FormEvent){e.preventDefault();setSaving(true);setError('');try{const data=await api(`/api/feedback/${review.id}`,'PATCH',{estimateStart:start,estimateEnd:end,notifyRecipient:notify});onSaved(data.warning);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}
   return <ModalShell open title={`${review.title} · V${review.version}`} onClose={()=>!saving&&onClose()}>
-    <StatusBadge status={review.status} overdue={review.overdue}/><p className="break-words">{review.isOwner ? `${review.recipientName} · ${review.recipientEmail}` : `Supervisor: ${review.supervisorName}`}</p>
+    <StatusBadge status={review.status} overdue={review.overdue}/>{review.paused && <p className="text-sm font-semibold text-amber-800">Process Paused</p>}<p className="break-words">{review.isOwner ? `${review.recipientName} · ${review.recipientEmail}` : `Supervisor: ${review.supervisorName}`}</p>
     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3 text-sm"><div><dt className="text-gray-500">Received</dt><dd>{formatDate(review.receivedDate)}</dd></div><div><dt className="text-gray-500">Returned</dt><dd>{formatDate(review.completedAt)}</dd></div><div className="sm:col-span-2"><dt className="text-gray-500">Estimated return</dt><dd>{formatDate(review.estimateStart)} – {formatDate(review.estimateEnd)}</dd></div>{review.turnaroundWorkingDays != null && <div className="sm:col-span-2"><dt className="text-gray-500">Feedback turnaround</dt><dd>{review.turnaroundWorkingDays} working days</dd></div>}</dl>
     {!['COMPLETED','CANCELLED'].includes(review.status) && <QueueSummary position={review.queuePosition} total={review.queueTotal} ahead={review.queueAhead} />}
     {review.isOwner && canManage && !['COMPLETED','CANCELLED'].includes(review.status) && review.queuePosition != null && <form className="space-y-3 border-t pt-4" onSubmit={moveInQueue}>
@@ -33,6 +39,11 @@ export default function ReviewDetails({review,canManage,onClose,onSaved}: {revie
       <button disabled={saving || queuePosition === review.queuePosition || !Number.isInteger(queuePosition) || queuePosition < 1 || queuePosition > review.queueTotal} className={secondaryClass}>{saving?'Saving…':'Move review'}</button>
     </form>}
     {review.isOwner && canManage && !['COMPLETED','CANCELLED'].includes(review.status) && <form className="space-y-3 border-t pt-4" onSubmit={save}><h3 className="font-semibold">Adjust return estimate</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><label className="space-y-1">Earliest<input required type="date" min={review.receivedDate} className={inputClass} value={start} onChange={e=>setStart(e.target.value)}/></label><label className="space-y-1">Latest<input required type="date" min={start} className={inputClass} value={end} onChange={e=>setEnd(e.target.value)}/></label></div><label className="flex gap-2"><input type="checkbox" checked={notify} onChange={e=>setNotify(e.target.checked)}/>Email recipient about this change</label><button disabled={saving || (start===review.estimateStart && end===review.estimateEnd)} className={buttonClass}>{saving?'Saving…':'Save estimate'}</button></form>}
+    {review.isOwner && canManage && !['COMPLETED','CANCELLED'].includes(review.status) && <form className="space-y-3 border-t pt-4" onSubmit={togglePause}>
+      <h3 className="font-semibold">{review.paused?'Resume review':'Process Paused'}</h3>
+      {review.paused ? <p className="text-sm text-gray-600">Check and reconfirm the earliest and latest return dates in the fields above before resuming. The actual pause may have been shorter or longer than expected.</p> : <><p className="text-sm text-gray-600">Pause at the current stage and email the student a tracking link without dates. An optional working-day estimate extends only the latest return date.</p><label className="block text-sm">Estimated pause (working days, optional)<input type="number" min={0} max={730} step={1} className={inputClass} value={pauseDays} onChange={e=>setPauseDays(e.target.value)}/></label></>}
+      <button disabled={saving} className={secondaryClass}>{review.paused?'Reconfirm dates and resume':'Pause and notify student'}</button>
+    </form>}
     {review.calendarWarning && <p role="status" className="rounded-lg bg-amber-50 p-3 text-amber-900">{review.calendarWarning}</p>}
     {review.isOwner && canManage && (!review.receiptEmailSentAt || (review.status==='COMPLETED' && !review.completionEmailSentAt)) && <div className="space-y-2 rounded-lg bg-amber-50 p-3"><p className="text-sm text-amber-900">An email has not been confirmed as sent. You can retry delivery.</p>{!review.receiptEmailSentAt && <button className={secondaryClass} disabled={saving} onClick={()=>retryEmail('receipt')}>Retry receipt email</button>}{review.status==='COMPLETED' && !review.completionEmailSentAt && <button className={secondaryClass} disabled={saving} onClick={()=>retryEmail('completion')}>Retry completion email</button>}</div>}
     {review.isOwner && review.trackingToken && <a className="inline-block text-sm font-medium text-blue-700 underline" href={`/feedback/track/${review.trackingToken}`} target="_blank" rel="noopener noreferrer">Open public tracking page</a>}

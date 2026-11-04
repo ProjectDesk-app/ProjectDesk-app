@@ -1,0 +1,1 @@
+ALTER TABLE "FeedbackReview" ADD COLUMN "paused" BOOLEAN NOT NULL DEFAULT false;

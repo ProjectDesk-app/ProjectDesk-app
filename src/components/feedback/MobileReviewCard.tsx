@@ -27,9 +27,9 @@ export default function MobileReviewCard({ review, canManage, busy, settingsRead
       {active && review.queuePosition != null && <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-900">Queue: {review.queuePosition} of {review.queueTotal}<span className="ml-2 text-xs font-normal">{review.queueAhead === 0 ? 'Next in queue' : `${review.queueAhead ?? review.queuePosition - 1} ahead`}</span></p>}
       {review.isOwner && canManage ? <div className="space-y-1.5">
         <label className="block text-xs font-medium text-gray-500" htmlFor={`mobile-stage-${review.id}`}>Progress</label>
-        <select id={`mobile-stage-${review.id}`} className={`${inputClass} min-h-11`} disabled={busy} value={review.status} onChange={event => onStage(event.target.value)}>
+        <select id={`mobile-stage-${review.id}`} className={`${inputClass} min-h-11`} disabled={busy} value={review.paused ? 'PAUSED' : review.status} onChange={event => onStage(event.target.value)}>
           {STAGES.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
-          <option value="CANCELLED">Cancelled</option>
+          <option value="PAUSED">Process Paused</option><option value="CANCELLED">Cancelled</option>
         </select>
         {review.overdue && <p className="text-xs font-medium text-amber-700">Overdue</p>}
       </div> : <StatusBadge status={review.status} overdue={review.overdue} />}

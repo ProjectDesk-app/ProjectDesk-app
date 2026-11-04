@@ -37,3 +37,12 @@ Default order is received date, then record creation time, then record ID to bre
 The queue enhancement has its own migration, `20261030130000_feedback_queue`. Apply it with `npx prisma migrate deploy` before deploying this version, even if the original Feedback Hub migration was already applied. It adds a nullable position field; existing reviews automatically use receipt-date order.
 
 Supervisors can permanently delete a review version from its details after confirmation. This deletes its progress history and tracking token without sending email or notifications. Other versions and their numbering are retained; deleting the final version also removes the work record. Deletion cannot be undone.
+
+
+### Pausing a review
+
+Select **Process Paused** in the stage selector, or open the review details and use **Pause and notify student**. The underlying review stage and queue position are preserved. An optional estimate in working days extends only the latest return date, excluding weekends and bank holidays. The student receives a pause email with a tracking link and no dates. The public tracker shows a Paused pill beside the return estimate only while paused. Past pauses remain in the stage timeline.
+
+To resume, check the earliest and latest return date fields in the details panel, then select **Reconfirm dates and resume**. Dates must be explicitly reconfirmed even if they are unchanged. Resume before selecting another review stage. Pause and resume actions are recorded in the private progress history.
+
+Deployment requires applying the `20261104100000_feedback_pause` Prisma migration before serving the updated application.

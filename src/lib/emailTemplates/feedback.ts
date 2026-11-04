@@ -11,6 +11,12 @@ const reviewVariables = {
 const { estimatedRange: _estimatedRange, ...completionVariables } = reviewVariables;
 export const feedbackTemplates: EmailTemplateDefinition[] = [
   {
+    id: 'feedback_paused', name: 'Feedback review paused', category: 'Feedback Hub', description: 'Sent when a review is paused. Dates are available only on the tracking page.',
+    subject: 'Review paused: {{workTitle}} (V{{version}})',
+    body: 'Hello {{recipientName}},\n\nThe review process for {{workTitle}} (V{{version}}) has been paused. This may be due to staff illness or if the staff member needs to consult with colleagues or management. Your feedback return date may be affected by this pause. Please use the tracking page for updates and any adjusted dates.\n\n{{action}}',
+    buttonLabel: 'Track Progress', buttonUrlVariable: 'actionUrl', variables: completionVariables, requiredVariables: ['workTitle', 'version'],
+  },
+  {
     id: 'feedback_received', name: 'Feedback received', category: 'Feedback Hub', description: 'Sent when a supervisor records a new draft for review.',
     subject: 'Work received: {{workTitle}} (V{{version}})',
     body: 'Hello {{recipientName}},\n\nYour work has been received and queued for review.\n\n{{workTitle}} — V{{version}}\nSupervisor: {{supervisorName}}\nEstimated feedback return: {{estimatedRange}}\n\n{{action}}\n\nSign in with this email address for your full review history.',

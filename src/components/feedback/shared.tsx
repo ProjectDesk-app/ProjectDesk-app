@@ -1,11 +1,13 @@
 export const STAGES = [
-  { value: 'RECEIVED', label: 'Received & Queued' },
-  { value: 'INITIAL_READING', label: 'Initial Reading' },
-  { value: 'FULL_REVIEW', label: 'Under Full Review' },
-  { value: 'FINALISING', label: 'Finalising Comments' },
-  { value: 'COMPLETED', label: 'Review Completed' },
+  { value: 'RECEIVED', label: 'Received & Queued', description: "Your document has been received successfully and has been placed into the queue to be reviewed. You should be able to see your position in the queue and your estimated feedback return dates." },
+  { value: 'INITIAL_READING', label: 'Initial Reading', description: "Your document is being read. This stage is primarily for getting an overview of the whole document, in preparation for the full review. General formatting, spelling and grammar may be noted here." },
+  { value: 'FULL_REVIEW', label: 'Under Full Review', description: "Your document is now being fully reviewed. In this stage, your work will be fully considered and, where appropriate, edits and comments will be added. This will be through the Microsoft Word feature called 'Track Changes'." },
+  { value: 'FINALISING', label: 'Finalising Comments', description: "The main review is finished. Now, a final check will ensure the comments are both clear and useful. By doing this, you should be able to work through the feedback without any difficulty. The document is nearly ready to be returned!" },
+  { value: 'COMPLETED', label: 'Review Completed', description: "The document has been fully checked over and should be making its way back to you. Typically, documents are returned by email unless otherwise agreed through some other format. You may initially be slightly overwhelmed by the comments and feedback; it is never a reflection of how well you have done! You will need to work through it all piece by piece, and get in touch if something doesn't make sense or isn't clear." },
 ];
+export const PAUSE_DESCRIPTION = "The review process has been paused. This may be due to staff illness or if the staff member needs to consult with colleagues or management. Your feedback return date may be affected by this pause. Please use the track progress page for any updates.";
 export type Review = {
+  paused: boolean; pauseStages?: string[];
   id: number; workId: number; title: string; recipientName: string; recipientEmail: string;
   workType: string; version: number; status: string; receivedDate: string; estimateStart: string;
   estimateEnd: string; completedAt: string | null; supervisorName: string; isOwner: boolean;

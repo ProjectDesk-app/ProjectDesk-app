@@ -90,3 +90,47 @@ function deleteHandler({ calls, access = 'owner' }) {
     },
   }).default;
 }
+
+async function patchPause(body, overrides = {}) {
+  let record = { id: 8, status: 'FULL_REVIEW', paused: false, receivedDate: '2026-11-02', estimateStart: '2026-11-09', estimateEnd: '2026-11-13', work: { supervisorId: 6, recipientName: 'Alex', recipientEmail: 'alex@example.org', title: 'Draft', supervisor: {} }, ...overrides };
+  const emails = [];
+  class FeedbackError extends Error {}
+  const handler = load('src/pages/api/feedback/[id]/index.ts', {
+    '@/lib/prisma': { prisma: { $transaction: async fn => fn({ feedbackReview: { findUniqueOrThrow: async () => record, update: async ({data}) => (record = {...record,...data}) } }) } },
+    '@/lib/feedbackQueue': { feedbackQueueMap: async () => new Map() },
+    '@/lib/feedbackDates': load('src/lib/feedbackDates.ts', {}),
+    '@/lib/blockedEmails': {}, '@/lib/feedbackHolidays': { feedbackHolidays: async () => new Set() },
+    '@/lib/emailTemplates': { sendTemplatedEmail: async (...args) => emails.push(args) },
+    '@/lib/feedback': {
+      feedbackUser: async () => ({}), getReview: async () => record, canRead: () => true, owns: () => true, canManageFeedback: () => true,
+      feedbackStatuses: ['FULL_REVIEW','COMPLETED'], terminal: status => ['COMPLETED','CANCELLED'].includes(status),
+      serializeReview: async r => r, FeedbackError, feedbackFailure: (res,e) => res.status(400).json({error:e.message}),
+      sendReviewEmail: async () => {}, trackLink: () => 'https://example.org/track/token',
+    },
+  }).default;
+  const res = response();
+  await handler({method:'PATCH', query:{id:'8'}, body}, res);
+  return {res,record,emails};
+}
+test('pause preserves review stage, extends only latest date by working days and sends date-free mail', async () => {
+  const {res,record,emails} = await patchPause({paused:true,pauseDays:2});
+  assert.equal(res.code,200);
+  assert.equal(record.status,'FULL_REVIEW');
+  assert.equal(record.paused,true);
+  assert.equal(record.estimateStart,'2026-11-09');
+  assert.equal(record.estimateEnd,'2026-11-17');
+  assert.equal(emails.length,1);
+  assert.equal(emails[0][1],'feedback_paused');
+  assert.equal('estimatedRange' in emails[0][2],false);
+});
+test('resume requires explicit confirmation of both dates, even when completing', async () => {
+  for (const body of [{paused:false},{status:'COMPLETED'},{paused:false,estimateConfirmed:true}]) {
+    assert.equal((await patchPause(body,{paused:true})).res.code,400);
+  }
+  const {res,record,emails} = await patchPause({paused:false,estimateConfirmed:true,estimateStart:'2026-11-09',estimateEnd:'2026-11-16'},{paused:true});
+  assert.equal(res.code,200);assert.equal(record.paused,false);assert.equal(record.estimateEnd,'2026-11-16');assert.equal(emails.length,0);
+});
+test('terminal reviews and invalid pause lengths cannot be paused', async () => {
+  assert.equal((await patchPause({paused:true},{status:'COMPLETED'})).res.code,400);
+  for (const pauseDays of [-1,1.5,731,'2']) assert.equal((await patchPause({paused:true,pauseDays})).res.code,400);
+});
