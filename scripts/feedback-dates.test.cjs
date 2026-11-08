@@ -86,7 +86,7 @@ test('update request is denied to owners/unrelated users, non-overdue and termin
   stage = 'CANCELLED'; assert.equal(await code(), 400);
   assert.equal(sends, 0);
 });
-test('daily summary skips outside UK 9am, skips holidays, and dedupes claims', async () => {
+test('daily summary enforces the UK 08:00 to 11:00 window, skips holidays, and dedupes claims', async () => {
   const originalSecret = process.env.CRON_SECRET; process.env.CRON_SECRET = 'test-secret';
   const OriginalDate = global.Date;
   const fixed = new OriginalDate('2026-10-30T09:00:00Z');
@@ -103,7 +103,22 @@ test('daily summary skips outside UK 9am, skips holidays, and dedupes claims', a
     assert.equal((await run()).body.skipped, 'Not a working day.');
     working = true; assert.equal((await run()).body.sent, 0); assert.equal(sends, 0);
     claim = 1; assert.equal((await run()).body.sent, 1); assert.equal(sends, 1);
-    fixed.setUTCHours(10); assert.match((await run()).body.skipped, /Outside/); assert.equal(sends, 1);
+    for (const [instant, allowed] of [
+      ['2026-11-02T07:59:59Z', false],
+      ['2026-11-02T08:00:00Z', true],
+      ['2026-11-02T10:59:59Z', true],
+      ['2026-11-02T11:00:00Z', false],
+      ['2026-07-01T06:59:59Z', false],
+      ['2026-07-01T07:00:00Z', true],
+      ['2026-07-01T09:59:59Z', true],
+      ['2026-07-01T10:00:00Z', false],
+    ]) {
+      fixed.setTime(new OriginalDate(instant).getTime());
+      const before = sends;
+      const result = await run();
+      if (allowed) { assert.equal(result.body.sent, 1, instant); assert.equal(sends, before + 1); }
+      else { assert.match(result.body.skipped, /Outside/, instant); assert.equal(sends, before); }
+    }
   } finally { global.Date = OriginalDate; if (originalSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = originalSecret; }
 });
 test('public projection excludes recipient identity, email, tokens and private history', () => {

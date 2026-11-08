@@ -1,7 +1,8 @@
 name: Feedback Hub daily summary
 on:
   schedule:
-    # One invocation is 09:00 in London; the endpoint ignores the other.
+    # Both invocations can fall within the 08:00 to 11:00 UK window.
+    # The endpoint deduplicates summaries by supervisor and UK date.
     - cron: '0 8,9 * * 1-5'
   workflow_dispatch:
 permissions: {}

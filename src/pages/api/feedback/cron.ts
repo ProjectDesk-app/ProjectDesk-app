@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const expectedBuffer = Buffer.from(expected), suppliedBuffer = Buffer.from(supplied);
   if (!expected || expectedBuffer.length !== suppliedBuffer.length || !timingSafeEqual(expectedBuffer, suppliedBuffer)) return res.status(401).json({ error: 'Unauthorized' });
   const now = new Date(), day = ukToday(now), hour = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', hourCycle: 'h23' }).format(now);
-  if (hour !== '09') return res.json({ skipped: 'Outside the 9 am UK delivery window.' });
+  if (Number(hour) < 8 || Number(hour) >= 11) return res.json({ skipped: 'Outside the 08:00 to 11:00 UK delivery window.' });
   try {
     if (!isWorkingDay(day, await feedbackHolidays(day))) return res.json({ skipped: 'Not a working day.' });
     const settings = await prisma.feedbackSettings.findMany({ where: { dailySummaryEnabled: true, OR: [{ lastSummaryDate: null }, { lastSummaryDate: { not: day } }] }, include: { user: true } });

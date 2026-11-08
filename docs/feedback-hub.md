@@ -6,7 +6,7 @@ Feedback Hub is independent of projects and stores review tracking, not draft fi
 
 1. Apply the checked-in migration with `npx prisma migrate deploy` in the deployment environment, then generate the Prisma client and deploy the application. The migration adds feedback tables and the default-false `User.feedbackOnly` flag; it does not alter existing project records.
 2. Configure the existing Mailgun delivery settings and `NEXTAUTH_URL` with the real application origin. In development, the existing mailer mocks delivery unless force-send is explicitly enabled. Review email failures in the existing admin email log.
-3. Set a strong `CRON_SECRET` in the application environment. Set repository Actions secrets `CRON_SECRET` to the same value and `FEEDBACK_CRON_URL` to `https://YOUR_APP_HOST/api/feedback/cron`. The included workflow calls at 08:00 and 09:00 UTC on weekdays; the endpoint only sends during London's 09:00 hour, including daylight saving changes. Supervisors must opt in under Hub settings.
+3. Set a strong `CRON_SECRET` in the application environment. Set repository Actions secrets `CRON_SECRET` to the same value and `FEEDBACK_CRON_URL` to `https://YOUR_APP_HOST/api/feedback/cron`. The included workflow calls at 08:00 and 09:00 UTC on weekdays; the endpoint only sends from 08:00 up to, but not including, 11:00 London time, including daylight saving changes. Supervisors must opt in under Hub settings.
 4. Enable GitHub Actions scheduled workflows on the default branch. GitHub schedules may be delayed: for precise 09:00 delivery, use a production scheduler calling the same endpoint with `Authorization: Bearer <CRON_SECRET>`. The endpoint deduplicates by supervisor and UK date and skips holidays, weekends, empty queues, and ineligible supervisors. Do not run a second scheduler unless the existing deduplication behaviour is intended.
 
 No production migration, deployment, or repository-secret changes are performed by the local implementation.
@@ -26,7 +26,7 @@ No production migration, deployment, or repository-secret changes are performed 
 
 Run `node --test scripts/feedback*.test.cjs scripts/task-set-schedule.test.cjs`, `npx tsc --noEmit --incremental false`, `npx prisma validate`, and `npm run build`.
 
-Before rollout, use a staging database and mail account to walk through receipt → stage changes → estimate revision → overdue request → completion → reopen → completion again; confirm only one completion email. Check V2/V3 grouping, recipient registration and verification, cancellation, correction of an email address, expired supervisor access, unrelated-account denial, and a summary invocation during London's 09:00 hour. Confirm the migration is applied before exposing Hub routes.
+Before rollout, use a staging database and mail account to walk through receipt → stage changes → estimate revision → overdue request → completion → reopen → completion again; confirm only one completion email. Check V2/V3 grouping, recipient registration and verification, cancellation, correction of an email address, expired supervisor access, unrelated-account denial, and summary invocations at the 08:00 and 11:00 London-time boundaries. Confirm the migration is applied before exposing Hub routes.
 
 ## Queue position
 
