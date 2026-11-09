@@ -8,7 +8,7 @@ export const STAGES = [
 export const PAUSE_DESCRIPTION = "The review process has been paused. This may be due to staff illness or if the staff member needs to consult with colleagues or management. Your feedback return date may be affected by this pause. Please use the track progress page for any updates.";
 export type Review = {
   paused: boolean; pauseStages?: string[];
-  id: number; workId: number; title: string; recipientName: string; recipientEmail: string;
+  id: number; workId: number; title: string; recipientName: string; recipientEmail: string | null; privateReview?: boolean;
   workType: string; version: number; status: string; receivedDate: string; estimateStart: string;
   estimateEnd: string; completedAt: string | null; supervisorName: string; isOwner: boolean;
   trackingToken?: string; receiptEmailSentAt?: string | null; completionEmailSentAt?: string | null; calendarWarning?: string; cancellationReason?: string; overdue: boolean; canRequestUpdate: boolean;

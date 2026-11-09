@@ -308,7 +308,7 @@ model FeedbackWork {
   supervisorId Int
   supervisor User @relation(fields: [supervisorId], references: [id])
   recipientName String
-  recipientEmail String
+  recipientEmail String?
   title String
   workType String
   createdAt DateTime @default(now())
@@ -341,6 +341,7 @@ model FeedbackReview {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   history FeedbackEvent[]
+  views FeedbackPageView[]
   @@unique([workId, version])
   @@index([status, estimateEnd])
 }
@@ -353,6 +354,19 @@ model FeedbackEvent {
   message String
   createdAt DateTime @default(now())
   @@index([reviewId])
+}
+
+model FeedbackPageView {
+  id Int @id @default(autoincrement())
+  reviewId Int
+  review FeedbackReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  viewId String @db.VarChar(36)
+  kind String
+  source String
+  recipientName String?
+  createdAt DateTime @default(now())
+  @@unique([reviewId, viewId])
+  @@index([reviewId, createdAt])
 }
 
 model FeedbackSettings {

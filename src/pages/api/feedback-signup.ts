@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   try {
     const review = await prisma.feedbackReview.findUnique({ where: { trackingToken }, include: { work: true } });
-    if (!review || review.work.recipientEmail.toLowerCase() !== email) {
+    if (!review || !review.work.recipientEmail || review.work.recipientEmail.toLowerCase() !== email) {
       return res.status(403).json({ error: "Use the email address that received this tracking link." });
     }
     if (await isEmailBlocked(email)) return res.status(403).json({ error: "This email address has been blocked from ProjectDesk" });

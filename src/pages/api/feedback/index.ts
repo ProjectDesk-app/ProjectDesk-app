@@ -16,15 +16,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (req.method !== 'POST') { res.setHeader('Allow', 'GET, POST'); return res.status(405).end(); }
     const body = req.body || {};
+    if (body.privateReview !== undefined && typeof body.privateReview !== 'boolean') throw new FeedbackError('Invalid review visibility.');
     const receivedDate = calendarDate(body.receivedDate || ukToday());
     if (receivedDate > ukToday()) throw new FeedbackError('Receipt date cannot be in the future.');
     const dates = body.estimateStart && body.estimateEnd ? { estimateStart: calendarDate(body.estimateStart), estimateEnd: calendarDate(body.estimateEnd) } : await estimate(receivedDate, dayCount(body.minDays), dayCount(body.maxDays));
     validateRange(dates.estimateStart, dates.estimateEnd, receivedDate);
-    let title: string, recipientName: string, recipientEmail: string, workType: string;
+    let title: string, recipientName: string, recipientEmail: string | null, workType: string;
     if (!body.workId) {
-      title = text(body.title, 'Work title'); recipientName = text(body.recipientName, 'Recipient name'); recipientEmail = text(body.recipientEmail, 'Recipient email', 254).toLowerCase(); workType = text(body.workType, 'Work type', 100);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) throw new FeedbackError('Enter a valid recipient email.');
-      if (await isEmailBlocked(recipientEmail)) throw new FeedbackError('This recipient email cannot be used.', 403);
+      title = text(body.title, 'Work title'); recipientName = text(body.recipientName, 'Recipient name'); recipientEmail = body.privateReview === true ? null : text(body.recipientEmail, 'Recipient email', 254).toLowerCase(); workType = text(body.workType, 'Work type', 100);
+      if (recipientEmail !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) throw new FeedbackError('Enter a valid recipient email.');
+      if (recipientEmail && await isEmailBlocked(recipientEmail)) throw new FeedbackError('This recipient email cannot be used.', 403);
     }
     const review = await prisma.$transaction(async tx => {
       let work;
@@ -43,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return tx.feedbackReview.create({ data: { workId: work.id, version: counter.nextVersion - 1, receivedDate, ...dates, trackingToken: randomBytes(32).toString('hex'), history: { create: { type: 'RECEIVED', message: `Received and queued. Estimated return: ${dates.estimateStart} to ${dates.estimateEnd}.` } } }, include: reviewInclude });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     let warning: string | undefined;
-    try { await sendReviewEmail(review.id, 'receipt'); } catch { warning = 'Review saved, but the receipt email failed. You can retry it from the review.'; }
+    try { if (review.work.recipientEmail) await sendReviewEmail(review.id, 'receipt'); } catch { warning = 'Review saved, but the receipt email failed. You can retry it from the review.'; }
     return res.status(201).json({ review: await serializeReview(review, user, (await feedbackQueueMap([review.work.supervisorId])).get(review.id)), warning });
   } catch (error) { return feedbackFailure(res, error); }
 }

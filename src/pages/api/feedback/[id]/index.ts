@@ -27,15 +27,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const body = req.body || {};
     if (body.retryEmail) {
+      if (!review.work.recipientEmail) throw new FeedbackError('Private reviews do not send emails.');
       if (!['receipt', 'completion'].includes(body.retryEmail) || (body.retryEmail === 'completion' && !review.completedAt)) throw new FeedbackError('Invalid email retry.');
       let warning: string | undefined;
       try { await sendReviewEmail(review.id, body.retryEmail); } catch { warning = 'Email delivery failed. Please try again later.'; }
       return res.json({ review: await serializeReview(await getReview(review.id), user, (await feedbackQueueMap([review.work.supervisorId])).get(review.id)), warning });
     }
+    if (!review.work.recipientEmail && body.recipientEmail !== undefined) throw new FeedbackError('Private reviews cannot be linked to a recipient.');
     const correctedName = body.recipientName === undefined ? review.work.recipientName : text(body.recipientName, 'Recipient name');
     const correctedEmail = body.recipientEmail === undefined ? review.work.recipientEmail : text(body.recipientEmail, 'Recipient email', 254).toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correctedEmail)) throw new FeedbackError('Enter a valid recipient email.');
-    if (correctedEmail !== review.work.recipientEmail && await isEmailBlocked(correctedEmail)) throw new FeedbackError('This recipient email cannot be used.', 403);
+    if (correctedEmail !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correctedEmail)) throw new FeedbackError('Enter a valid recipient email.');
+    if (correctedEmail && correctedEmail !== review.work.recipientEmail && await isEmailBlocked(correctedEmail)) throw new FeedbackError('This recipient email cannot be used.', 403);
     if (body.status !== undefined && !feedbackStatuses.includes(body.status)) throw new FeedbackError('Invalid review status.');
     const estimateStart = body.estimateStart === undefined ? review.estimateStart : calendarDate(body.estimateStart);
     let estimateEnd = body.estimateEnd === undefined ? review.estimateEnd : calendarDate(body.estimateEnd);
@@ -91,12 +93,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     let warning: string | undefined = calendarWarning;
     try {
-      if (newlyPaused) await sendTemplatedEmail(updated.work.recipientEmail, 'feedback_paused', {
+      if (newlyPaused && updated.work.recipientEmail) await sendTemplatedEmail(updated.work.recipientEmail, 'feedback_paused', {
         recipientName: updated.work.recipientName, workTitle: updated.work.title, version: updated.version,
         supervisorName: updated.work.supervisor.name || 'Your supervisor', actionUrl: trackLink(updated.trackingToken),
       });
-      if (updated.status === 'COMPLETED') await sendReviewEmail(updated.id, 'completion');
-      if (body.paused === undefined && !review.paused && body.notifyRecipient === true && (updated.estimateStart !== review.estimateStart || updated.estimateEnd !== review.estimateEnd)) await sendTemplatedEmail(updated.work.recipientEmail, 'feedback_estimate_updated', {
+      if (updated.status === 'COMPLETED' && updated.work.recipientEmail) await sendReviewEmail(updated.id, 'completion');
+      if (updated.work.recipientEmail && body.paused === undefined && !review.paused && body.notifyRecipient === true && (updated.estimateStart !== review.estimateStart || updated.estimateEnd !== review.estimateEnd)) await sendTemplatedEmail(updated.work.recipientEmail, 'feedback_estimate_updated', {
         recipientName: updated.work.recipientName, workTitle: updated.work.title, version: updated.version,
         supervisorName: updated.work.supervisor.name || 'Your supervisor',
         estimatedRange: formatFeedbackDateRange(updated.estimateStart, updated.estimateEnd), actionUrl: trackLink(updated.trackingToken),

@@ -29,6 +29,12 @@ test('feedback ownership and recipient email enforce review boundaries', () => {
   assert.equal(feedback.canRead(review, recipient), true);
   assert.equal(feedback.canRead(review, { id: 3, email: 'other@example.org', role: 'ADMIN' }), false);
 });
+test('a name on a private review never grants student access', () => {
+  const privateReview = { ...review, work: { ...review.work, recipientEmail: null } };
+  assert.equal(feedback.canRead(privateReview, owner), true);
+  assert.equal(feedback.canRead(privateReview, recipient), false);
+  assert.equal(feedback.canRead(privateReview, { id: 3, email: 'other@example.org' }), false);
+});
 test('management follows supervisor entitlement and does not extend to recipients', () => {
   assert.equal(feedback.canManageFeedback({ role: 'STUDENT', subscriptionType: 'SUBSCRIBED' }), false);
   assert.equal(feedback.canManageFeedback({ role: 'SUPERVISOR', subscriptionType: 'CANCELLED' }), false);

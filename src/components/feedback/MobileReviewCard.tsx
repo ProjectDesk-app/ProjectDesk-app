@@ -22,7 +22,7 @@ export default function MobileReviewCard({ review, canManage, busy, settingsRead
         </button>
         <p className="mt-1 break-words text-xs text-gray-500">{review.workType}</p>
         <button className="mt-2 max-w-full break-words text-left text-sm font-medium text-blue-700 hover:underline" onClick={onRecipientHistory}>{review.isOwner ? review.recipientName : review.supervisorName}</button>
-        {review.isOwner && <p className="mt-0.5 break-all text-xs text-gray-500">{review.recipientEmail}</p>}
+        {review.isOwner && <p className="mt-0.5 break-all text-xs text-gray-500">{review.privateReview ? 'Private review · No student emails' : review.recipientEmail}</p>}
       </div>
       {active && review.queuePosition != null && <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-900">Queue: {review.queuePosition} of {review.queueTotal}<span className="ml-2 text-xs font-normal">{review.queueAhead === 0 ? 'Next in queue' : `${review.queueAhead ?? review.queuePosition - 1} ahead`}</span></p>}
       {review.isOwner && canManage ? <div className="space-y-1.5">

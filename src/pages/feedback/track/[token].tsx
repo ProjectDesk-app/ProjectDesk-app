@@ -1,4 +1,6 @@
 import Head from 'next/head';
+import { useSession } from 'next-auth/react';
+import { useFeedbackView } from '@/components/feedback/useFeedbackView';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import useSWR from 'swr';
@@ -11,6 +13,8 @@ export default function FeedbackTracker() {
   const token = typeof router.query.token === 'string' ? router.query.token : '';
   const {data,error,isLoading,mutate} = useSWR(token ? `/api/feedback/track/${encodeURIComponent(token)}` : null, (url: string) => api<any>(url), {refreshInterval: 60000});
   const review = data?.review;
+  const { status: sessionStatus } = useSession();
+  useFeedbackView([{ token, source: 'TRACKING' }], Boolean(review) && sessionStatus !== 'loading');
   const stages = STAGES.flatMap(stage => [stage, ...(review?.pauseStages || []).filter((status: string) => status === stage.value).map((_status: string, index: number) => ({ value: `PAUSED_${stage.value}_${index}`, label: 'Process Paused', description: PAUSE_DESCRIPTION }))]);
   const baseCurrent = stages.findIndex(s => s.value === review?.status);
   let current = baseCurrent;
@@ -36,7 +40,7 @@ export default function FeedbackTracker() {
           {review.status === 'CANCELLED' ? <p className="mt-5 rounded-lg bg-gray-50 p-4 text-sm text-gray-700">This review has been cancelled.{review.cancellationReason ? ` ${review.cancellationReason}` : ''}</p> : <ol className="mt-5 space-y-0 sm:mt-7" aria-label="Feedback review stages">{stages.map((stage,index) => { const completed = index < current || (!review.paused && stage.value.startsWith(`PAUSED_${review.status}_`)); const active = index === current; return <li key={stage.value} className="relative flex gap-4 pb-6 last:pb-0">{index < stages.length-1 && <span className={`absolute left-[15px] top-8 h-full w-0.5 ${completed ? 'bg-blue-500' : 'bg-gray-200'}`} />}<span className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm ${completed ? 'bg-blue-600 text-white' : active ? 'bg-blue-100 font-bold text-blue-800 ring-2 ring-blue-600' : 'bg-gray-100 text-gray-500'}`}>{completed ? <Check className="h-4 w-4" /> : index+1}</span><div className="pt-1"><p className={`text-sm ${active ? 'font-semibold text-blue-800' : 'text-gray-600'}`}>{stage.label}</p>{(index <= current || completed) && <p className="mt-2 text-sm leading-relaxed text-gray-600">{stage.description}</p>}{active && <p className="mt-1 text-xs text-gray-500">Current stage</p>}</div></li>;})}</ol>}
         </section>
         <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 sm:p-5"><h2 className="font-semibold text-gray-900">Your full feedback history</h2><p className="mt-2 text-sm text-gray-600">Sign in with your review email to see all your drafts, history and turnaround times.</p><div className="mt-3 flex flex-wrap gap-2"><Link className={buttonClass} href="/signin?callbackUrl=%2Ffeedback">Sign in</Link><Link className={secondaryClass} href={`/feedback/signup?token=${encodeURIComponent(token)}`}>Create an account</Link></div></section>
-        <p className="text-center text-xs text-gray-500">Status refreshes automatically every minute. </p>
+        <p className="text-center text-xs text-gray-500">Status refreshes automatically every minute. Page opens are logged for your supervisor, with your name when signed in with your review email. </p>
       </>}
     </div>
   </Layout>;

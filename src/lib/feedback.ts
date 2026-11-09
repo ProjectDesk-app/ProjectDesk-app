@@ -38,7 +38,7 @@ export async function getReview(id: unknown) {
   if (!review) throw new FeedbackError('Review not found.', 404); return review;
 }
 export function owns(review: any, user: any) { return review.work.supervisorId === user.id; }
-export function canRead(review: any, user: any) { return owns(review, user) || review.work.recipientEmail.toLowerCase() === user.email.toLowerCase(); }
+export function canRead(review: any, user: any) { return owns(review, user) || Boolean(review.work.recipientEmail && review.work.recipientEmail.toLowerCase() === user.email.toLowerCase()); }
 export async function serializeReview(review: any, user?: any, queue?: {queuePosition: number; queueTotal: number; queueAhead: number}) {
   const owner = user && owns(review, user), today = ukToday();
   let nextRequestDate: string | null = null, turnaroundWorkingDays: number | null = review.turnaroundWorkingDays ?? null;
@@ -50,7 +50,7 @@ export async function serializeReview(review: any, user?: any, queue?: {queuePos
     if (review.completedAt && turnaroundWorkingDays === null) turnaroundWorkingDays = workingDaysBetween(review.receivedDate, ukToday(new Date(review.completedAt)), holidays);
   } catch { calendarWarning = 'Working-day information is temporarily unavailable.'; }
   const overdue = !terminal(review.status) && review.estimateEnd < today;
-  return { queuePosition: queue?.queuePosition ?? null, queueTotal: queue?.queueTotal ?? 0, queueAhead: queue?.queueAhead ?? null, id: review.id, workId: review.workId, title: review.work.title, recipientName: review.work.recipientName, recipientEmail: review.work.recipientEmail, workType: review.work.workType, version: review.version, status: review.status, paused: review.paused, pauseStages: (review.history || []).filter((event: any) => event.type?.startsWith('PAUSED_')).map((event: any) => event.type.slice(7)), receivedDate: review.receivedDate, estimateStart: review.estimateStart, estimateEnd: review.estimateEnd, completedAt: review.completedAt, cancellationReason: review.cancellationReason, supervisorName: review.work.supervisor.name || 'Your supervisor', isOwner: Boolean(owner), ...(owner ? { trackingToken: review.trackingToken, receiptEmailSentAt: review.receiptEmailSentAt, completionEmailSentAt: review.completionEmailSentAt } : {}), history: review.history, overdue, canRequestUpdate: Boolean(user && !owner && overdue && !calendarWarning && (!nextRequestDate || nextRequestDate <= today)), nextRequestDate, turnaroundWorkingDays, calendarWarning };
+  return { queuePosition: queue?.queuePosition ?? null, queueTotal: queue?.queueTotal ?? 0, queueAhead: queue?.queueAhead ?? null, id: review.id, workId: review.workId, title: review.work.title, recipientName: review.work.recipientName, recipientEmail: review.work.recipientEmail, privateReview: !review.work.recipientEmail, workType: review.work.workType, version: review.version, status: review.status, paused: review.paused, pauseStages: (review.history || []).filter((event: any) => event.type?.startsWith('PAUSED_')).map((event: any) => event.type.slice(7)), receivedDate: review.receivedDate, estimateStart: review.estimateStart, estimateEnd: review.estimateEnd, completedAt: review.completedAt, cancellationReason: review.cancellationReason, supervisorName: review.work.supervisor.name || 'Your supervisor', isOwner: Boolean(owner), ...(owner ? { ...(review.work.recipientEmail ? { trackingToken: review.trackingToken } : {}), receiptEmailSentAt: review.receiptEmailSentAt, completionEmailSentAt: review.completionEmailSentAt } : {}), history: review.history, overdue, canRequestUpdate: Boolean(user && !owner && overdue && !calendarWarning && (!nextRequestDate || nextRequestDate <= today)), nextRequestDate, turnaroundWorkingDays, calendarWarning };
 }
 export function publicReview(review: any, queue?: {queuePosition: number; queueTotal: number; queueAhead: number}) {
   return { queuePosition: queue?.queuePosition ?? null, queueTotal: queue?.queueTotal ?? 0, queueAhead: queue?.queueAhead ?? null, title: review.work.title, version: review.version, supervisorName: review.work.supervisor.name || 'Your supervisor', status: review.status, paused: review.paused, pauseStages: (review.history || []).filter((event: any) => event.type?.startsWith('PAUSED_')).map((event: any) => event.type.slice(7)), receivedDate: review.receivedDate, estimateStart: review.estimateStart, estimateEnd: review.estimateEnd, completedAt: review.completedAt, cancellationReason: review.cancellationReason, overdue: !terminal(review.status) && review.estimateEnd < ukToday() };
@@ -70,10 +70,11 @@ export function trackLink(token: string) { return `${(process.env.NEXTAUTH_URL |
 export async function sendReviewEmail(id: number, kind: 'receipt' | 'completion') {
   const claimedField = kind === 'receipt' ? 'receiptEmailClaimedAt' : 'completionEmailClaimedAt';
   const sentField = kind === 'receipt' ? 'receiptEmailSentAt' : 'completionEmailSentAt';
-  const claim = await prisma.feedbackReview.updateMany({ where: { id, [claimedField]: null, [sentField]: null }, data: { [claimedField]: new Date() } });
+  const claim = await prisma.feedbackReview.updateMany({ where: { id, work: { recipientEmail: { not: null } }, [claimedField]: null, [sentField]: null }, data: { [claimedField]: new Date() } });
   if (!claim.count) return;
   try {
     const review = await getReview(id);
+    if (!review.work.recipientEmail) return;
     const receipt = kind === 'receipt';
     await sendTemplatedEmail(review.work.recipientEmail, receipt ? 'feedback_received' : 'feedback_completed', {
       recipientName: review.work.recipientName, workTitle: review.work.title, version: review.version,

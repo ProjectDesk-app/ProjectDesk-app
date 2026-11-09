@@ -13,7 +13,7 @@ function load(file, mocks) {
   return module.exports;
 }
 const info = { queuePosition: 4, queueTotal: 12, queueAhead: 3 };
-const record = { id: 8, status: 'RECEIVED', work: { supervisorId: 6, title: 'Own work', supervisor: { name: 'Supervisor' } } };
+const record = { id: 8, status: 'RECEIVED', work: { supervisorId: 6, recipientEmail: 'student@example.org', title: 'Own work', supervisor: { name: 'Supervisor' } } };
 const response = () => ({ code: 200, headers: {}, setHeader(key, value) { this.headers[key] = value; }, status(code) { this.code = code; return this; }, json(data) { this.body = data; return this; }, end() { return this; } });
 test('public tracking gets queue statistics for the owning supervisor and returns only the public projection', async () => {
   let scopes;
@@ -133,4 +133,58 @@ test('resume requires explicit confirmation of both dates, even when completing'
 test('terminal reviews and invalid pause lengths cannot be paused', async () => {
   assert.equal((await patchPause({paused:true},{status:'COMPLETED'})).res.code,400);
   for (const pauseDays of [-1,1.5,731,'2']) assert.equal((await patchPause({paused:true,pauseDays})).res.code,400);
+});
+
+test('private reviews can pause, change estimates and complete without student emails', async () => {
+  const work = { supervisorId: 6, recipientName: 'Alex', recipientEmail: null, title: 'Assessment', supervisor: {} };
+  for (const body of [{ paused: true, pauseDays: 2 }, { estimateEnd: '2026-11-16', notifyRecipient: true }, { status: 'COMPLETED' }]) {
+    const { res, emails } = await patchPause(body, { work });
+    assert.equal(res.code, 200);
+    assert.equal(emails.length, 0);
+  }
+  for (const body of [{ retryEmail: 'receipt' }, { recipientEmail: 'student@example.org' }]) {
+    const { res, emails } = await patchPause(body, { work });
+    assert.equal(res.code, 400);
+    assert.equal(emails.length, 0);
+  }
+});
+
+test('private review creation and next versions store no email and never send receipts', async () => {
+  class FeedbackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
+  const dates = load('src/lib/feedbackDates.ts', {});
+  for (const nextVersion of [false, true]) {
+    let work = { id: 12, supervisorId: 6, title: 'Assessment', recipientName: 'Alex', recipientEmail: null, workType: 'Assessment' };
+    const tx = {
+      feedbackWork: { create: async ({ data }) => (work = { ...work, ...data }), findFirst: async () => work, update: async () => ({ ...work, nextVersion: nextVersion ? 3 : 2 }) },
+      feedbackReview: { findMany: async () => [], create: async ({ data }) => ({ ...data, id: 8, work }) },
+    };
+    const handler = load('src/pages/api/feedback/index.ts', {
+      '@/lib/prisma': { prisma: { $transaction: fn => fn(tx) } },
+      '@/lib/feedbackDates': dates, '@/lib/blockedEmails': { isEmailBlocked: () => assert.fail('no email should be checked') },
+      '@/lib/feedbackQueue': { feedbackQueueMap: async () => new Map([[8, info]]) },
+      '@/lib/feedback': { FeedbackError, feedbackUser: async () => ({ id: 6 }),
+        text: value => value, sendReviewEmail: () => assert.fail('must not email private reviews'),
+        serializeReview: async (review, _user, queue) => ({ ...review, ...queue }),
+        feedbackFailure: (res, error) => res.status(error.status || 500).json({ error: error.message }) },
+    }).default;
+    const res = response();
+    await handler({ method: 'POST', body: { privateReview: !nextVersion, recipientEmail: 'ignored@example.org',
+      recipientName: 'Alex', title: 'Assessment', workType: 'Assessment', receivedDate: '2026-11-02',
+      estimateStart: '2026-11-09', estimateEnd: '2026-11-13', ...(nextVersion ? { workId: 12 } : {}) } }, res);
+    assert.equal(res.code, 201);
+    assert.equal(res.body.review.work.recipientEmail, null);
+    assert.equal(res.body.review.queueTotal, 12);
+    assert.equal(res.body.review.version, nextVersion ? 2 : 1);
+  }
+});
+
+test('private reviews are not accessible through public tracking tokens', async () => {
+  const handler = load('src/pages/api/feedback/track/[token].ts', {
+    '@/lib/prisma': { prisma: { feedbackReview: { findUnique: async () => ({ ...record, work: { ...record.work, recipientEmail: null } }) } } },
+    '@/lib/feedbackQueue': { feedbackQueueMap: () => assert.fail('private review must not be projected') },
+    '@/lib/feedback': { reviewInclude: {}, feedbackFailure: () => assert.fail('unexpected failure') },
+  }).default;
+  const res = response();
+  await handler({ method: 'GET', query: { token: 'a'.repeat(64) } }, res);
+  assert.equal(res.code, 404);
 });

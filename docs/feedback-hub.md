@@ -45,3 +45,23 @@ Select **Process Paused** in the stage selector, or open the review details and 
 To resume, check the earliest and latest return date fields in the details panel, then select **Reconfirm dates and resume**. Dates must be explicitly reconfirmed even if they are unchanged. Resume before selecting another review stage. Pause and resume actions are recorded in the private progress history.
 
 Deployment requires applying the `20261104100000_feedback_pause` Prisma migration before serving the updated application.
+
+## Page usage
+
+Supervisors can expand **Show page usage** below the Hub review list for totals across their reviews and a paginated log, or open a review's details for its own usage. Times are shown in Europe/London time. Logs are private to the owning supervisor and separate from the student's progress history.
+
+The browser sends a view only after review data loads and the page is visible. A tracking page open counts once; on the signed-in Hub, each review displayed by the current filters counts once during that page visit. Revisiting a review through another filter in the same visit does not add another view. Automatic minute-by-minute refreshes, background tabs awaiting their first view, and the supervisor's own signed-in visits do not add views. Retrying a POST with the same review and page-open ID is idempotent.
+
+A verified account matching the recipient email is labelled with the recipient's name. Other tracking-page visitors are labelled “Somebody viewed the page”, including signed-in accounts that do not match. Anonymous views cannot establish who visited or how many distinct people visited. Basic email link scanners and prefetches do not execute the browser POST, although automated browsers running JavaScript may still count. Counts do not measure attention, email reading or reading of externally returned feedback, and cannot recover visits before this release.
+
+The tracker and Hub include a short usage notice. Logs store the review, a random page-open ID, source, recipient name for matching accounts, and server timestamp. They do not store IP addresses, user agents, cookies or persistent visitor identifiers. Permanently deleting a review cascades to its view log. Collection failures do not prevent viewing feedback.
+
+Apply `20261109210000_feedback_page_views` with `npx prisma migrate deploy` before deploying this version, then regenerate the Prisma client. No historical data is backfilled.
+
+## Private assessment reviews
+
+Select **Private review (no student link or emails)** when adding work. Enter a name or label and document title; no email is required or stored. These reviews belong to the supervisor only, appear in the normal queue, and contribute to queue positions shown to other recipients without exposing the private name or title. Completion and cancellation remove them from the active queue as usual.
+
+A private review is represented by a null recipient email. It cannot appear in a student's account, be opened with a public tracking token, enable recipient registration, or send receipt, pause, revised-estimate or completion emails. Email retries and adding a recipient email are rejected. New versions inherit the existing work's privacy. Supervisor daily queue summaries still include this work. Private reviews have no page-usage panel because they cannot be viewed by students.
+
+Apply `20261109220000_feedback_private_reviews` before deploying this feature. This makes the recipient email nullable; existing reviews keep their recipient links and normal behaviour.
