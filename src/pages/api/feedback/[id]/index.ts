@@ -26,6 +26,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(204).end();
     }
     const body = req.body || {};
+    if (body.title !== undefined) {
+      if (Object.keys(body).some(key => key !== 'title')) throw new FeedbackError('Save title changes separately.');
+      const title = text(body.title, 'Work title');
+      await prisma.feedbackWork.update({ where: { id: review.workId }, data: { title } });
+      return res.json({ review: await serializeReview(await getReview(review.id), user, (await feedbackQueueMap([review.work.supervisorId])).get(review.id)) });
+    }
     if (body.retryEmail) {
       if (!review.work.recipientEmail) throw new FeedbackError('Private reviews do not send emails.');
       if (!['receipt', 'completion'].includes(body.retryEmail) || (body.retryEmail === 'completion' && !review.completedAt)) throw new FeedbackError('Invalid email retry.');

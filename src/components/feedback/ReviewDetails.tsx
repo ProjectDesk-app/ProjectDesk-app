@@ -6,8 +6,14 @@ export default function ReviewDetails({review,canManage,onClose,onSaved}: {revie
   const [start,setStart]=useState(review.estimateStart),[end,setEnd]=useState(review.estimateEnd),[notify,setNotify]=useState(false);
   const [recipientName,setRecipientName]=useState(review.recipientName),[recipientEmail,setRecipientEmail]=useState(review.recipientEmail || '');
   const [pauseDays,setPauseDays]=useState('');
+  const [title,setTitle]=useState(review.title);
   const [queuePosition,setQueuePosition]=useState(review.queuePosition ?? 1);
   const [saving,setSaving]=useState(false),[error,setError]=useState('');
+  async function saveTitle(e:FormEvent){
+    e.preventDefault();setSaving(true);setError('');
+    try{const data=await api(`/api/feedback/${review.id}`,'PATCH',{title:title.trim()});onSaved(data.warning);}
+    catch(e){setError((e as Error).message);}finally{setSaving(false);}
+  }
   async function togglePause(e:FormEvent){
     e.preventDefault();setSaving(true);setError('');
     try{const data=await api(`/api/feedback/${review.id}`,'PATCH',review.paused ? {paused:false,estimateStart:start,estimateEnd:end,estimateConfirmed:true} : {paused:true,...(pauseDays!==''?{pauseDays:Number(pauseDays)}:{})});onSaved(data.warning);}
@@ -30,6 +36,11 @@ export default function ReviewDetails({review,canManage,onClose,onSaved}: {revie
   async function retryEmail(kind: 'receipt'|'completion'){setSaving(true);setError('');try{const data=await api(`/api/feedback/${review.id}`,'PATCH',{retryEmail:kind});onSaved(data.warning);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}
   async function save(e:FormEvent){e.preventDefault();setSaving(true);setError('');try{const data=await api(`/api/feedback/${review.id}`,'PATCH',{estimateStart:start,estimateEnd:end,notifyRecipient:notify});onSaved(data.warning);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}
   return <ModalShell open title={`${review.title} · V${review.version}`} onClose={()=>!saving&&onClose()}>
+    {review.isOwner && canManage && <form className="space-y-3" onSubmit={saveTitle}>
+      <label className="block space-y-1 text-sm font-medium">Title of work<input required maxLength={200} className={inputClass} value={title} onChange={e=>setTitle(e.target.value)} /></label>
+      <p className="text-xs text-gray-500">Applies to all versions of this work. No email is sent.</p>
+      <button disabled={saving || !title.trim() || title.trim()===review.title} className={secondaryClass}>Save title</button>
+    </form>}
     <StatusBadge status={review.status} overdue={review.overdue}/>{review.paused && <p className="text-sm font-semibold text-amber-800">Process Paused</p>}<p className="break-words">{review.isOwner ? `${review.recipientName} · ${review.privateReview ? 'Private review (no student emails)' : review.recipientEmail}` : `Supervisor: ${review.supervisorName}`}</p>
     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3 text-sm"><div><dt className="text-gray-500">Received</dt><dd>{formatDate(review.receivedDate)}</dd></div><div><dt className="text-gray-500">Returned</dt><dd>{formatDate(review.completedAt)}</dd></div><div className="sm:col-span-2"><dt className="text-gray-500">Estimated return</dt><dd>{formatDate(review.estimateStart)} – {formatDate(review.estimateEnd)}</dd></div>{review.turnaroundWorkingDays != null && <div className="sm:col-span-2"><dt className="text-gray-500">Feedback turnaround</dt><dd>{review.turnaroundWorkingDays} working days</dd></div>}</dl>
     {!['COMPLETED','CANCELLED'].includes(review.status) && <QueueSummary position={review.queuePosition} total={review.queueTotal} ahead={review.queueAhead} />}

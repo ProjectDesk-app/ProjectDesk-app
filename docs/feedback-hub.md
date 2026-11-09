@@ -12,6 +12,7 @@ Feedback Hub is independent of projects and stores review tracking, not draft fi
 
 ## Review behaviour
 
+- Supervisors can edit **Title of work** in review details. The title is shared by all versions; changing it preserves review IDs, queue positions, history and tracking links, and sends no email. Future tracking displays and emails use the updated title; previously sent emails keep their original text.
 - Each work record belongs to one supervisor and recipient email. Add next version retains the work grouping and allocates a distinct version, status, dates, token, history, and turnaround record. If earlier versions remain active, the supervisor explicitly keeps them or cancels them as superseded.
 - Receipt dates default to today and may be backdated. Working-day ranges start counting after receipt, exclude weekends and [England and Wales bank holidays](https://www.gov.uk/bank-holidays.json), and use Europe/London dates. Holiday data is cached; calculations refuse dates outside published coverage. An unavailable calendar does not hide existing records.
 - Stages can move forwards or backwards. Reopening a terminal review requires confirmation. Completing means feedback has already been returned externally. Cancellation retains its reason and history and sends no email.

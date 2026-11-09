@@ -15,6 +15,42 @@ function load(file, mocks) {
 const info = { queuePosition: 4, queueTotal: 12, queueAhead: 3 };
 const record = { id: 8, status: 'RECEIVED', work: { supervisorId: 6, recipientEmail: 'student@example.org', title: 'Own work', supervisor: { name: 'Supervisor' } } };
 const response = () => ({ code: 200, headers: {}, setHeader(key, value) { this.headers[key] = value; }, status(code) { this.code = code; return this; }, json(data) { this.body = data; return this; }, end() { return this; } });
+test('title edits update the shared work only, preserve review data and never email', async () => {
+  for (const access of ['owner', 'recipient', 'unrelated', 'expired']) {
+    const writes = [];
+    const review = { ...record, workId: 12, status: 'COMPLETED', trackingToken: 'existing-token', queuePosition: null, history: [{ message: 'Existing history' }] };
+    class FeedbackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
+    const handler = load('src/pages/api/feedback/[id]/index.ts', {
+      '@/lib/prisma': { prisma: { feedbackWork: { update: async args => { writes.push(args); review.work = { ...review.work, title: args.data.title }; } } } },
+      '@/lib/feedbackQueue': { feedbackQueueMap: async () => new Map() },
+      '@/lib/feedbackDates': {}, '@/lib/blockedEmails': {}, '@/lib/feedbackHolidays': {},
+      '@/lib/emailTemplates': { sendTemplatedEmail: () => assert.fail('must not email') },
+      '@/lib/feedback': { FeedbackError,
+        feedbackUser: async () => ({}), getReview: async () => review,
+        canRead: () => access !== 'unrelated', owns: () => access !== 'recipient', canManageFeedback: () => access !== 'expired',
+        text: value => { if (typeof value !== 'string' || !value.trim() || value.trim().length > 200) throw new FeedbackError('Invalid title'); return value.trim(); },
+        serializeReview: async r => r, feedbackFailure: (res, error) => res.status(error.status || 500).json({ error: error.message }),
+        sendReviewEmail: () => assert.fail('must not retry a pending completion email'),
+      },
+    }).default;
+    const res = response();
+    await handler({ method: 'PATCH', query: { id: '8' }, body: { title: '  Revised title  ' } }, res);
+    if (access === 'owner') {
+      assert.equal(res.code, 200);
+      assert.deepEqual(writes, [{ where: { id: 12 }, data: { title: 'Revised title' } }]);
+      assert.equal(res.body.review.trackingToken, 'existing-token');
+      assert.equal(res.body.review.status, 'COMPLETED');
+      assert.deepEqual(res.body.review.history, [{ message: 'Existing history' }]);
+      const invalid = response();
+      await handler({ method: 'PATCH', query: { id: '8' }, body: { title: ' ' } }, invalid);
+      assert.equal(invalid.code, 400);
+      assert.equal(writes.length, 1);
+    } else {
+      assert.equal(res.code, access === 'unrelated' ? 404 : 403);
+      assert.equal(writes.length, 0);
+    }
+  }
+});
 test('public tracking gets queue statistics for the owning supervisor and returns only the public projection', async () => {
   let scopes;
   const handler = load('src/pages/api/feedback/track/[token].ts', {
