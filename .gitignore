@@ -21,6 +21,10 @@ dist/
 Thumbs.db
 
 # IDE / Editor settings
+.agents/
+.claude/
+.cursor/
+.devin/
 .vscode/
 .idea/
 *.swp
@@ -43,3 +47,7 @@ coverage/
 .vercel
 .env*.local
 .eslintrc.json
+
+# Local database setup and TypeScript cache
+/docker-compose.yml
+*.tsbuildinfo

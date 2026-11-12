@@ -1,8 +1,9 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Layout from "@/components/Layout";
 import { useRouter } from "next/router";
+import { quoteOfTheDay } from "@/lib/quotes";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -11,6 +12,15 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [quote, setQuote] = useState<ReturnType<typeof quoteOfTheDay> | null>(null);
+
+  useEffect(() => {
+    // Resolve in the browser so static builds cannot freeze the daily quote.
+    const refreshQuote = () => setQuote(quoteOfTheDay());
+    refreshQuote();
+    const timer = window.setInterval(refreshQuote, 60000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -94,6 +104,11 @@ export default function SignInPage() {
             </Link>
           </p>
         </div>
+        {quote && <figure className="rounded-lg bg-blue-50 px-5 py-4 text-center">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700">Quote of the day</p>
+          <blockquote className="text-sm italic leading-relaxed text-gray-700">“{quote.text}”</blockquote>
+          <figcaption className="mt-2 text-xs font-medium text-gray-600">{quote.author}</figcaption>
+        </figure>}
         <footer className="border-t border-gray-200 pt-4 text-center text-sm text-gray-500">
           Need help?{" "}
           <Link href="/contact" className="font-semibold text-blue-600 hover:underline">

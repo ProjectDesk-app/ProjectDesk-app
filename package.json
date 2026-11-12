@@ -12,8 +12,7 @@
     "test:emails": "node --test scripts/email-templates.test.cjs scripts/email-verification.test.cjs",
     "test:notifications": "node --test scripts/activity-notifications.test.cjs scripts/task-notifications.test.cjs scripts/project-status-notifications.test.cjs",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "db:seed": "node prisma/seed.cjs"
+    "prisma:migrate": "prisma migrate dev"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
