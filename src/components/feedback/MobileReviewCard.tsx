@@ -5,6 +5,7 @@ type Props = {
   canManage: boolean;
   busy: boolean;
   settingsReady: boolean;
+  readOnly?: boolean;
   onDetails: () => void;
   onRecipientHistory: () => void;
   onNextVersion: () => void;
@@ -12,7 +13,7 @@ type Props = {
   onRequestUpdate: () => void;
 };
 
-export default function MobileReviewCard({ review, canManage, busy, settingsReady, onDetails, onRecipientHistory, onNextVersion, onStage, onRequestUpdate }: Props) {
+export default function MobileReviewCard({ review, canManage, busy, settingsReady, readOnly = false, onDetails, onRecipientHistory, onNextVersion, onStage, onRequestUpdate }: Props) {
   const active = !['COMPLETED', 'CANCELLED'].includes(review.status);
   return (
     <article className="min-w-0 space-y-4 p-4">
@@ -43,7 +44,7 @@ export default function MobileReviewCard({ review, canManage, busy, settingsRead
         <button className={`${secondaryClass} min-h-11`} onClick={onDetails}>View history</button>
         {review.isOwner && canManage && <button className={`${secondaryClass} min-h-11`} disabled={!settingsReady} onClick={onNextVersion}>Add next version</button>}
         {!review.isOwner && review.overdue && <div className="space-y-1">
-          <button className={`${buttonClass} min-h-11`} disabled={!review.canRequestUpdate || busy} onClick={onRequestUpdate}>{busy ? 'Sending…' : review.canRequestUpdate ? 'Request update' : 'Update requested'}</button>
+          <button className={`${buttonClass} min-h-11`} disabled={readOnly || !review.canRequestUpdate || busy} title={readOnly ? 'Student actions are disabled in preview.' : undefined} onClick={onRequestUpdate}>{busy ? 'Sending…' : review.canRequestUpdate ? 'Request update' : 'Update requested'}</button>
           {!review.canRequestUpdate && review.nextRequestDate && <p className="text-xs text-gray-500">Available {formatDate(review.nextRequestDate)}</p>}
         </div>}
       </div>

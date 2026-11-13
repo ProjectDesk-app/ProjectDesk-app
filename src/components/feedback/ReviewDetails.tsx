@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import Link from 'next/link';
 import UsageLog from './UsageLog';
 import { ModalShell } from '@/components/account/ModalShell';
 import { api, buttonClass, formatDate, inputClass, Review, secondaryClass, StatusBadge, QueueSummary } from './shared';
@@ -42,6 +43,7 @@ export default function ReviewDetails({review,canManage,onClose,onSaved}: {revie
   async function retryEmail(kind: 'receipt'|'completion'){setSaving(true);setError('');try{const data=await api(`/api/feedback/${review.id}`,'PATCH',{retryEmail:kind});onSaved(data.warning);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}
   async function save(e:FormEvent){e.preventDefault();setSaving(true);setError('');try{const data=await api(`/api/feedback/${review.id}`,'PATCH',{estimateStart:start,estimateEnd:end,notifyRecipient:notify});onSaved(data.warning);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}
   return <ModalShell open title={`${review.title} · V${review.version}`} onClose={()=>!saving&&onClose()}>
+    {review.isOwner && canManage && !review.privateReview && <Link className={secondaryClass} href={`/feedback/preview/${review.id}`} target="_blank" rel="noopener noreferrer">Preview as student</Link>}
     {review.isOwner && canManage && <form className="space-y-3" onSubmit={saveTitle}>
       <label className="block space-y-1 text-sm font-medium">Title of work<input required maxLength={200} className={inputClass} value={title} onChange={e=>setTitle(e.target.value)} /></label>
       <p className="text-xs text-gray-500">Applies to all versions of this work. No email is sent.</p>
