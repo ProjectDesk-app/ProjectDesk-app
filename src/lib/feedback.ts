@@ -6,6 +6,27 @@ import { addWorkingDays, ukToday, workingDaysBetween, shiftDay, formatFeedbackDa
 import { FeedbackDateError } from './feedbackDates';
 import { FeedbackHolidayError, feedbackHolidays } from './feedbackHolidays';
 import type { NextApiRequest, NextApiResponse } from 'next';
+export type ManualFeedbackUpdate = { title: string; detail: string; stage: string; createdAt: string | Date };
+
+// Manual updates use the existing event table; other history stays private.
+export function manualFeedbackUpdates(history: { type: string; message: string; createdAt: string | Date }[] = []): ManualFeedbackUpdate[] {
+  return history.flatMap(event => {
+    if (event.type !== 'MANUAL_UPDATE') return [];
+    try {
+      const value = JSON.parse(event.message);
+      if (typeof value?.title !== 'string' || typeof value.detail !== 'string' ||
+          !['RECEIVED', 'INITIAL_READING', 'FULL_REVIEW', 'FINALISING', 'COMPLETED', 'CANCELLED'].includes(value.stage)) return [];
+      return [{ title: value.title, detail: value.detail, stage: value.stage, createdAt: event.createdAt }];
+    } catch { return []; }
+  });
+}
+
+export function feedbackHistoryMessage(event: { type: string; message: string; createdAt: string | Date }) {
+  const update = manualFeedbackUpdates([event])[0];
+  return update ? `${update.title}\n\n${update.detail}` : event.message;
+}
+
+
 export const feedbackStatuses = ['RECEIVED', 'INITIAL_READING', 'FULL_REVIEW', 'FINALISING', 'COMPLETED', 'CANCELLED'];
 export const terminal = (status: string) => ['COMPLETED', 'CANCELLED'].includes(status);
 export class FeedbackError extends Error { constructor(message: string, public status = 400) { super(message); } }
@@ -50,10 +71,10 @@ export async function serializeReview(review: any, user?: any, queue?: {queuePos
     if (review.completedAt && turnaroundWorkingDays === null) turnaroundWorkingDays = workingDaysBetween(review.receivedDate, ukToday(new Date(review.completedAt)), holidays);
   } catch { calendarWarning = 'Working-day information is temporarily unavailable.'; }
   const overdue = !terminal(review.status) && review.estimateEnd < today;
-  return { queuePosition: queue?.queuePosition ?? null, queueTotal: queue?.queueTotal ?? 0, queueAhead: queue?.queueAhead ?? null, id: review.id, workId: review.workId, title: review.work.title, recipientName: review.work.recipientName, recipientEmail: review.work.recipientEmail, privateReview: !review.work.recipientEmail, workType: review.work.workType, version: review.version, status: review.status, paused: review.paused, pauseStages: (review.history || []).filter((event: any) => event.type?.startsWith('PAUSED_')).map((event: any) => event.type.slice(7)), receivedDate: review.receivedDate, estimateStart: review.estimateStart, estimateEnd: review.estimateEnd, completedAt: review.completedAt, cancellationReason: review.cancellationReason, supervisorName: review.work.supervisor.name || 'Your supervisor', isOwner: Boolean(owner), ...(owner ? { ...(review.work.recipientEmail ? { trackingToken: review.trackingToken } : {}), receiptEmailSentAt: review.receiptEmailSentAt, completionEmailSentAt: review.completionEmailSentAt } : {}), history: review.history, overdue, canRequestUpdate: Boolean(user && !owner && overdue && !calendarWarning && (!nextRequestDate || nextRequestDate <= today)), nextRequestDate, turnaroundWorkingDays, calendarWarning };
+  return { manualUpdates: manualFeedbackUpdates(review.history), queuePosition: queue?.queuePosition ?? null, queueTotal: queue?.queueTotal ?? 0, queueAhead: queue?.queueAhead ?? null, id: review.id, workId: review.workId, title: review.work.title, recipientName: review.work.recipientName, recipientEmail: review.work.recipientEmail, privateReview: !review.work.recipientEmail, workType: review.work.workType, version: review.version, status: review.status, paused: review.paused, pauseStages: (review.history || []).filter((event: any) => event.type?.startsWith('PAUSED_')).map((event: any) => event.type.slice(7)), receivedDate: review.receivedDate, estimateStart: review.estimateStart, estimateEnd: review.estimateEnd, completedAt: review.completedAt, cancellationReason: review.cancellationReason, supervisorName: review.work.supervisor.name || 'Your supervisor', isOwner: Boolean(owner), ...(owner ? { ...(review.work.recipientEmail ? { trackingToken: review.trackingToken } : {}), receiptEmailSentAt: review.receiptEmailSentAt, completionEmailSentAt: review.completionEmailSentAt } : {}), history: (review.history || []).map((event: any) => ({ ...event, message: feedbackHistoryMessage(event) })), overdue, canRequestUpdate: Boolean(user && !owner && overdue && !calendarWarning && (!nextRequestDate || nextRequestDate <= today)), nextRequestDate, turnaroundWorkingDays, calendarWarning };
 }
 export function publicReview(review: any, queue?: {queuePosition: number; queueTotal: number; queueAhead: number}) {
-  return { queuePosition: queue?.queuePosition ?? null, queueTotal: queue?.queueTotal ?? 0, queueAhead: queue?.queueAhead ?? null, title: review.work.title, version: review.version, supervisorName: review.work.supervisor.name || 'Your supervisor', status: review.status, paused: review.paused, pauseStages: (review.history || []).filter((event: any) => event.type?.startsWith('PAUSED_')).map((event: any) => event.type.slice(7)), receivedDate: review.receivedDate, estimateStart: review.estimateStart, estimateEnd: review.estimateEnd, completedAt: review.completedAt, cancellationReason: review.cancellationReason, overdue: !terminal(review.status) && review.estimateEnd < ukToday() };
+  return { manualUpdates: manualFeedbackUpdates(review.history), queuePosition: queue?.queuePosition ?? null, queueTotal: queue?.queueTotal ?? 0, queueAhead: queue?.queueAhead ?? null, title: review.work.title, version: review.version, supervisorName: review.work.supervisor.name || 'Your supervisor', status: review.status, paused: review.paused, pauseStages: (review.history || []).filter((event: any) => event.type?.startsWith('PAUSED_')).map((event: any) => event.type.slice(7)), receivedDate: review.receivedDate, estimateStart: review.estimateStart, estimateEnd: review.estimateEnd, completedAt: review.completedAt, cancellationReason: review.cancellationReason, overdue: !terminal(review.status) && review.estimateEnd < ukToday() };
 }
 export function text(value: unknown, label: string, max = 200) { if (typeof value !== 'string' || !value.trim() || value.trim().length > max) throw new FeedbackError(`${label} is required (up to ${max} characters).`); return value.trim(); }
 export function dayCount(value: unknown) { if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 730) throw new FeedbackError('Enter whole working-day estimates between 1 and 730.'); return value; }

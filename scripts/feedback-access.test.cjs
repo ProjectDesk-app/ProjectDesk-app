@@ -21,6 +21,17 @@ function load(relative, mocks = {}) {
   return mod.exports;
 }
 const feedback = load('src/lib/feedback.ts');
+test('public manual updates expose only their explicit content and date, not private history', () => {
+  const createdAt = '2026-11-13T12:30:00Z';
+  const projection = feedback.publicReview({ ...review, history: [
+    { type: 'ESTIMATE_CHANGED', message: 'Internal history', createdAt },
+    { type: 'MANUAL_UPDATE', message: JSON.stringify({ title: 'Update', detail: 'Student-facing details', stage: 'FULL_REVIEW', privateField: 'secret' }), createdAt },
+    { type: 'MANUAL_UPDATE', message: 'Invalid legacy event', createdAt },
+  ] });
+  assert.deepEqual(projection.manualUpdates, [{ title: 'Update', detail: 'Student-facing details', stage: 'FULL_REVIEW', createdAt }]);
+  assert.equal(JSON.stringify(projection).includes('Internal history'), false);
+  assert.equal(JSON.stringify(projection).includes('secret'), false);
+});
 const owner = { id: 1, email: 'owner@example.org' };
 const recipient = { id: 2, email: 'Student@Example.org' };
 const review = { id: 17, workId: 8, version: 3, status: 'FULL_REVIEW', receivedDate: '2026-10-01', estimateStart: '2026-10-05', estimateEnd: '2026-10-08', trackingToken: 'secret', work: { supervisorId: 1, recipientName: 'Private name', recipientEmail: 'student@example.org', title: 'Ethics', workType: 'Ethics Document', supervisor: { name: 'Supervisor', email: 'private-owner@example.org' } }, history: [{ message: 'private history' }] };
